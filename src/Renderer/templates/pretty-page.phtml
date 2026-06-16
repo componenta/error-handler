@@ -1,0 +1,1072 @@
+<?php
+/**
+ * Pretty error page template
+ *
+ * @var bool $debug
+ * @var string $applicationName
+ * @var string $accentColor
+ * @var string $errorColor
+ * @var array $exceptionChain
+ * @var array $exception
+ * @var array $frames
+ * @var array $request
+ * @var array $getData
+ * @var array|null $postData
+ * @var array $cookies
+ * @var array $files
+ * @var array|null $rawBody
+ * @var array $headers
+ * @var array $server
+ * @var array $environment
+ * @var array $searchProviders
+ * @var array|null $editor
+ * @var callable $e Escape function
+ * @var callable $dump Value formatter function
+ * @var array $theme
+ */
+
+if (!$debug): ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error <?= $e((string)($exception['code'] ?: 500)) ?></title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:<?= $e($theme['bg']) ?>;color:<?= $e($theme['text']) ?>;min-height:100vh;display:flex;align-items:center;justify-content:center}
+        .error-box{text-align:center;padding:3rem}
+        .error-code{font-size:6rem;font-weight:300;color:<?= $e($errorColor) ?>;line-height:1}
+        .error-message{font-size:1.25rem;color:<?= $e($theme['text2']) ?>;margin-top:1rem}
+    </style>
+</head>
+<body>
+    <div class="error-box">
+        <div class="error-code"><?= $e((string)($exception['code'] ?: 500)) ?></div>
+        <div class="error-message">Something went wrong</div>
+    </div>
+</body>
+</html>
+<?php return; endif; ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= $e($exception['class']) ?> — <?= $e($applicationName) ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/<?= $e($theme['highlightCss']) ?>">
+    <style>
+        :root {
+            --bg: <?= $e($theme['bg']) ?>;
+            --bg2: <?= $e($theme['bg2']) ?>;
+            --bg3: <?= $e($theme['bg3']) ?>;
+            --text: <?= $e($theme['text']) ?>;
+            --text2: <?= $e($theme['text2']) ?>;
+            --muted: <?= $e($theme['muted']) ?>;
+            --accent: <?= $e($accentColor) ?>;
+            --border: <?= $e($theme['border']) ?>;
+            --code-bg: <?= $e($theme['codeBg']) ?>;
+            --error: <?= $e($errorColor) ?>;
+            --warning: #f59e0b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+        * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+        html { font-size: 16px; }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(239, 68, 68, <?= $e($theme['gradientOpacity']) ?>) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        a { text-decoration: none; color: inherit; }
+
+        /* Layout */
+        .layout { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 420px;
+            min-width: 420px;
+            background: var(--bg2);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+        }
+        .sidebar-header { padding: 1.25rem; border-bottom: 1px solid var(--border); }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+        .logo svg { width: 18px; height: 18px; color: var(--error); }
+        
+        /* Search buttons */
+        .search-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .search-buttons:empty { display: none; }
+        .search-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.375rem 0.625rem;
+            font-size: 0.6875rem;
+            font-weight: 500;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: var(--bg3);
+            color: var(--text2);
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+        }
+        .search-btn:hover { border-color: var(--muted); color: var(--text); }
+        .search-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+        .search-btn.google { border-color: #4285f4; }
+        .search-btn.google:hover { background: rgba(66, 133, 244, <?= $e($theme['badgeOpacity']) ?>); }
+        .search-btn.stackoverflow { border-color: #f48024; }
+        .search-btn.stackoverflow:hover { background: rgba(244, 128, 36, <?= $e($theme['badgeOpacity']) ?>); }
+        .search-btn.habr { border-color: #77a2b6; }
+        .search-btn.habr:hover { background: rgba(119, 162, 182, <?= $e($theme['badgeOpacity']) ?>); }
+        
+        /* Editor link */
+        .editor-link {
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        .editor-link:hover { color: var(--text); text-decoration: underline; }
+        
+        /* SVG icons */
+        .icon { width: 16px; height: 16px; flex-shrink: 0; }
+        .icon-sm { width: 14px; height: 14px; }
+        .icon-lg { width: 20px; height: 20px; }
+        
+        .exception-type {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--error);
+            background: rgba(239, 68, 68, <?= $e($theme['badgeOpacity']) ?>);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 0.5rem;
+        }
+        .exception-code {
+            color: var(--text2);
+            margin-left: 0.5rem;
+        }
+        .exception-message {
+            font-size: 1rem;
+            font-weight: 500;
+            line-height: 1.4;
+            color: var(--text);
+            word-break: break-word;
+            margin-bottom: 0.5rem;
+        }
+        .exception-location {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6875rem;
+            color: var(--muted);
+        }
+        
+        /* Stack list */
+        .stack-list { flex: 1; overflow-y: auto; padding: 0.5rem 0; }
+        
+        /* Stack frame (both regular and exception) */
+        .stack-frame {
+            padding: 0.625rem 1.25rem;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.15s ease;
+        }
+        .stack-frame:hover { background: var(--bg3); }
+        .stack-frame.active {
+            background: <?= $e($theme['activeBg']) ?>;
+            border-left-color: var(--accent);
+        }
+        .stack-frame.active .frame-index { color: var(--accent); }
+        .frame-header { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.125rem; }
+        .frame-index {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.625rem;
+            color: var(--muted);
+            min-width: 1.25rem;
+        }
+        .frame-function {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text);
+            word-break: break-all;
+        }
+        .frame-function .class-name { color: var(--accent); }
+        .frame-function .method-name { color: #fbbf24; }
+        .frame-function .throw-label { color: var(--error); }
+        .frame-location {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.625rem;
+            color: var(--muted);
+            margin-left: 1.75rem;
+            word-break: break-all;
+        }
+        .frame-location .line-num { color: var(--text2); }
+        
+        /* Frame arguments */
+        .frame-args {
+            margin: 0.375rem 0 0 1.75rem;
+        }
+        .frame-args-toggle {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.625rem;
+            color: var(--accent);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        .frame-args-toggle:hover { text-decoration: underline; }
+        .frame-args-toggle .chevron { transition: transform 0.15s; }
+        .frame-args-list {
+            display: none;
+            margin-top: 0.375rem;
+            padding: 0.5rem;
+            background: var(--bg);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.625rem;
+        }
+        .frame-args-list.show { display: block; }
+        .frame-arg-item { margin-bottom: 0.25rem; }
+        .frame-arg-item:last-child { margin-bottom: 0; }
+        .frame-arg-type { color: var(--accent); }
+        .frame-arg-value { color: var(--text2); word-break: break-all; }
+        
+        /* Main */
+        .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        
+        /* Main tabs */
+        .main-tabs {
+            display: flex;
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+            padding: 0 0.75rem;
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+        .main-tab {
+            padding: 0.75rem 1rem;
+            font-size: 0.8125rem;
+            color: var(--muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .main-tab:hover { color: var(--text2); }
+        .main-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .main-tab .badge {
+            display: inline-block;
+            background: var(--bg3);
+            color: var(--text2);
+            font-size: 0.625rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            margin-left: 0.375rem;
+        }
+        
+        /* Main content panels */
+        .main-content { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+        .main-content.active { display: flex; }
+        
+        /* Code viewer */
+        .code-viewer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        .code-block {
+            display: none;
+            flex-direction: column;
+            position: absolute;
+            inset: 0;
+        }
+        .code-block.active { display: flex; }
+        .code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.875rem 1.25rem;
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .code-path {
+            display: flex;
+            align-items: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text2);
+        }
+        .code-path svg { color: var(--muted); flex-shrink: 0; margin-right: 0.5rem; }
+        .code-path .hl { color: var(--text); }
+        .code-actions { display: flex; gap: 0.5rem; }
+        .code-action {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .code-action:hover { color: var(--text); border-color: var(--muted); }
+        .code-content { flex: 1; overflow: auto; background: var(--code-bg); }
+        
+        /* Code table */
+        .code-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            line-height: 1.7;
+        }
+        .code-table tr { transition: background 0.1s ease; }
+        .code-table tr:hover { background: <?= $e($theme['hoverBg']) ?>; }
+        .code-table tr.highlight { background: <?= $e($theme['highlightBg']) ?>; }
+        .code-table tr.error-line { background: <?= $e($theme['errorLineBg']) ?>; }
+        .code-table .line-number {
+            width: 50px;
+            padding: 0 0.75rem;
+            text-align: right;
+            color: var(--muted);
+            user-select: none;
+            border-right: 1px solid var(--border);
+            vertical-align: top;
+        }
+        .code-table tr.error-line .line-number {
+            color: var(--error);
+            background: <?= $e($theme['sidebarErrorBg']) ?>;
+        }
+        .code-table .line-code {
+            padding: 0 0.75rem;
+            white-space: pre;
+            color: var(--text2);
+        }
+        .code-table .line-code code {
+            font-family: inherit;
+            background: transparent !important;
+            padding: 0 !important;
+        }
+        .code-table .hljs {
+            background: transparent !important;
+            padding: 0 !important;
+        }
+        
+        /* Line editor link column */
+        .code-table .line-action {
+            width: 1px;
+            padding: 0 1rem 0 0;
+            text-align: right;
+            white-space: nowrap;
+        }
+        .line-editor-link {
+            font-size: 0.6875rem;
+            color: var(--accent);
+            text-decoration: none;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+        .line-editor-link:hover { text-decoration: underline; }
+        .code-table tr:hover .line-editor-link { opacity: 1; }
+        
+        /* Empty state */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            color: var(--muted);
+            text-align: center;
+            height: 100%;
+        }
+        .empty-state svg { width: 2.5rem; height: 2.5rem; margin-bottom: 1rem; opacity: 0.5; }
+        
+        /* Panel content (for non-code tabs) */
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem;
+            background: var(--bg);
+        }
+        .panel-table {
+            width: 100%;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            border-collapse: collapse;
+        }
+        .panel-table tr { border-bottom: 1px solid var(--border); }
+        .panel-table tr:last-child { border-bottom: none; }
+        .panel-table td { padding: 0.5rem 0; vertical-align: top; }
+        .panel-table .key { color: var(--muted); width: 180px; padding-right: 1rem; }
+        .panel-table .value { color: var(--text2); word-break: break-all; }
+        .panel-table .value.accent { color: var(--accent); }
+        
+        /* Arguments panel */
+        .args-table { width: 100%; border-collapse: collapse; }
+        .args-table tr { border-bottom: 1px solid var(--border); }
+        .args-table tr:last-child { border-bottom: none; }
+        .args-table td { 
+            padding: 0.625rem 0; 
+            vertical-align: top;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+        .args-table .arg-index { 
+            color: var(--muted); 
+            width: 40px; 
+            text-align: center;
+        }
+        .args-table .arg-name { color: var(--accent); width: 120px; }
+        .args-table .arg-type { color: var(--muted); width: 100px; }
+        .args-table .arg-value { color: var(--text2); word-break: break-all; }
+        
+        /* Raw body */
+        .raw-body {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            background: var(--bg2);
+            padding: 1rem;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: var(--text2);
+            max-height: 300px;
+            overflow: auto;
+        }
+        .truncated-notice {
+            font-size: 0.6875rem;
+            color: var(--muted);
+            margin-top: 0.75rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .layout { flex-direction: column; }
+            .sidebar { width: 100%; min-width: 100%; height: auto; max-height: 50vh; position: relative; }
+            .stack-list { max-height: 250px; }
+            .code-block { position: relative; }
+        }
+        @media (max-width: 640px) {
+            .sidebar-header { padding: 1rem; }
+            .stack-frame { padding: 0.5rem 1rem; }
+            .code-header { padding: 0.625rem 1rem; }
+            .code-path span:not(.hl) { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg class="icon" viewBox="0 0 24 24"  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9v-1a3 3 0 0 1 6 0v1"/><path d="M8 9h8a6 6 0 0 1 1 3v3a5 5 0 0 1 -10 0v-3a6 6 0 0 1 1 -3"/><path d="M3 13l4 0"/><path d="M17 13l4 0"/><path d="M12 20l0 -6"/><path d="M4 19l3.35 -2"/><path d="M20 19l-3.35 -2"/><path d="M4 7l3.75 2.4"/><path d="M20 7l-3.75 2.4"/></svg>
+                    <?= $e($applicationName) ?>
+                </div>
+                
+                <div id="exception-info">
+                    <div class="exception-type" id="exc-type">
+                        <?= $e($exception['class']) ?>
+                        <?php if ($exception['code']): ?>
+                            <span class="exception-code">(<?= $e((string)$exception['code']) ?>)</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="exception-message" id="exc-message"><?= $e($exception['message']) ?></div>
+                    <div class="exception-location" id="exc-location">
+                        <?= $e($exception['shortFile']) ?>:<?= $exception['line'] ?>
+                    </div>
+                    
+                    <?php if ($searchProviders): ?>
+                    <div class="search-buttons" id="search-buttons">
+                        <?php $searchQuery = urlencode($exception['shortClass'] . ' ' . $exception['message']); ?>
+                        <?php foreach ($searchProviders as $provider): ?>
+                        <a href="<?= $e(sprintf($provider['url'], $searchQuery)) ?>" 
+                           target="_blank" 
+                           rel="noopener" 
+                           class="search-btn <?= $e($provider['class'] ?? '') ?>"
+                           data-url-template="<?= $e($provider['url']) ?>">
+                            <?= $provider['icon'] ?>
+                            <?= $e($provider['name']) ?>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            
+            <div class="stack-list">
+                <?php foreach ($frames as $frame): ?>
+                    <?php if ($frame['isExceptionMarker']): ?>
+                    <!-- Exception throw point (looks like regular frame) -->
+                    <div class="stack-frame<?= $frame['index'] === 0 ? ' active' : '' ?>" 
+                         data-frame="<?= $frame['index'] ?>"
+                         data-is-exception="1"
+                         data-exc-class="<?= $e($frame['exceptionClass']) ?>"
+                         data-exc-short-class="<?= $e($frame['exceptionShortClass']) ?>"
+                         data-exc-message="<?= $e($frame['exceptionMessage']) ?>"
+                         data-exc-code="<?= $e((string)$frame['exceptionCode']) ?>"
+                         data-exc-file="<?= $e($frame['shortFile']) ?>"
+                         data-exc-line="<?= $frame['line'] ?>"
+                         data-exc-index="<?= $frame['exceptionIndex'] ?>">
+                        <div class="frame-header">
+                            <span class="frame-index">#<?= $frame['index'] ?></span>
+                            <span class="frame-function">
+                                <span class="throw-label">&lt;throw&gt;</span> <span class="class-name"><?= $e($frame['exceptionShortClass']) ?></span>
+                            </span>
+                        </div>
+                        <div class="frame-location">
+                            <?= $e($frame['shortFile']) ?>:<span class="line-num"><?= $frame['line'] ?></span>
+                        </div>
+                    </div>
+                    <?php else: ?>
+                    <!-- Regular frame -->
+                    <div class="stack-frame" data-frame="<?= $frame['index'] ?>">
+                        <div class="frame-header">
+                            <span class="frame-index">#<?= $frame['index'] ?></span>
+                            <span class="frame-function">
+                                <?php if ($frame['class']): ?>
+                                    <span class="class-name"><?= $e($frame['shortClass']) ?></span>::<span class="method-name"><?= $e($frame['function']) ?></span>()
+                                <?php elseif ($frame['function']): ?>
+                                    <span class="method-name"><?= $e($frame['function']) ?></span><?= $frame['function'] !== '{main}' ? '()' : '' ?>
+                                <?php else: ?>
+                                    <span class="method-name">{main}</span>
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                        <?php if ($frame['file']): ?>
+                        <div class="frame-location">
+                            <?= $e($frame['shortFile']) ?>:<span class="line-num"><?= $frame['line'] ?? '?' ?></span>
+                        </div>
+                        <?php endif; ?>
+                        <?php if ($frame['args']): ?>
+                        <div class="frame-args">
+                            <span class="frame-args-toggle" data-toggle="args-<?= $frame['index'] ?>">
+                                <svg class="icon-sm chevron" viewBox="0 0 24 24"  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6l-6 6"/></svg>
+                                <?= count($frame['args']) ?> argument<?= count($frame['args']) !== 1 ? 's' : '' ?>
+                            </span>
+                            <div class="frame-args-list" id="args-<?= $frame['index'] ?>">
+                                <?php foreach ($frame['args'] as $arg): ?>
+                                <div class="frame-arg-item">
+                                    <span class="frame-arg-type"><?= $e($arg['type']) ?></span>
+                                    <span class="frame-arg-value"><?= $e($arg['value']) ?></span>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+        </aside>
+
+        <main class="main">
+            <div class="main-tabs">
+                <div class="main-tab active" data-tab="code">Code</div>
+                <div class="main-tab" data-tab="arguments">Arguments</div>
+                <div class="main-tab" data-tab="request">Request</div>
+                <?php if ($getData): ?>
+                <div class="main-tab" data-tab="get">GET <span class="badge"><?= count($getData) ?></span></div>
+                <?php endif; ?>
+                <?php if ($postData): ?>
+                <div class="main-tab" data-tab="post">POST <span class="badge"><?= is_array($postData) ? count($postData) : 1 ?></span></div>
+                <?php endif; ?>
+                <?php if ($cookies): ?>
+                <div class="main-tab" data-tab="cookies">Cookies <span class="badge"><?= count($cookies) ?></span></div>
+                <?php endif; ?>
+                <?php if ($files): ?>
+                <div class="main-tab" data-tab="files">Files <span class="badge"><?= count($files) ?></span></div>
+                <?php endif; ?>
+                <?php if ($rawBody): ?>
+                <div class="main-tab" data-tab="body">Body</div>
+                <?php endif; ?>
+                <div class="main-tab" data-tab="headers">Headers</div>
+                <div class="main-tab" data-tab="server">Server</div>
+                <?php if ($environment): ?>
+                <div class="main-tab" data-tab="env">Env</div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Code tab -->
+            <div class="main-content active" id="tab-code">
+                <div class="code-viewer">
+                    <?php foreach ($frames as $frame): ?>
+                    <div class="code-block<?= $frame['index'] === 0 ? ' active' : '' ?>" data-frame="<?= $frame['index'] ?>">
+                        <?php if ($frame['code']): ?>
+                        <div class="code-header">
+                            <div class="code-path">
+                                <svg class="icon" viewBox="0 0 24 24"  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/><path d="M10 13l-1 2l1 2"/><path d="M14 13l1 2l-1 2"/></svg>
+                                <span><?= $e(dirname($frame['shortFile']) . '/') ?></span><span class="hl"><?= $e(basename($frame['file'])) ?></span>
+                            </div>
+                            <div class="code-actions">
+                                <?php if ($editor): ?>
+                                <a href="<?= $e(str_replace(['%file%', '%line%'], [$frame['file'], $frame['line']], $editor['url'])) ?>" 
+                                   class="editor-link"
+                                   title="Open in <?= $e($editor['name']) ?>">
+                                    Open in <?= $e($editor['name']) ?>
+                                </a>
+                                <?php endif; ?>
+                                <button class="code-action" title="Copy path" data-path="<?= $e($frame['file']) ?>">
+                                    <svg class="icon" viewBox="0 0 24 24"  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="code-content">
+                            <table class="code-table">
+                                <?php 
+                                $startLine = $frame['code']['startLine'];
+                                $errorLine = $frame['code']['errorLine'];
+                                foreach ($frame['code']['lines'] as $i => $line):
+                                    $lineNum = $startLine + $i;
+                                    $isError = $lineNum === $errorLine;
+                                    $isHighlight = !$isError && abs($lineNum - $errorLine) <= 2;
+                                    $rowClass = $isError ? 'error-line' : ($isHighlight ? 'highlight' : '');
+                                ?>
+                                <tr<?= $rowClass ? ' class="' . $rowClass . '"' : '' ?>>
+                                    <td class="line-number"><?= $lineNum ?></td>
+                                    <td class="line-code"><code class="language-php"><?= $e($line) ?></code></td>
+                                    <?php if ($editor): ?>
+                                    <td class="line-action"><a href="<?= $e(str_replace(['%file%', '%line%'], [$frame['file'], $lineNum], $editor['url'])) ?>" class="line-editor-link">Open</a></td>
+                                    <?php endif; ?>
+                                </tr>
+                                <?php endforeach; ?>
+                            </table>
+                        </div>
+                        <?php else: ?>
+                        <div class="code-header">
+                            <div class="code-path">
+                                <svg class="icon" viewBox="0 0 24 24"  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/><path d="M10 13l-1 2l1 2"/><path d="M14 13l1 2l-1 2"/></svg>
+                                <span>Source not available</span>
+                            </div>
+                        </div>
+                        <div class="code-content">
+                            <div class="empty-state">
+                                <svg class="icon-lg" viewBox="0 0 24 24"  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 5v14a2 2 0 0 0 2 2h10"/><path d="M9.5 3h.5l5 5v1.5"/></svg>
+                                <p>Source code is not available for this frame</p>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <!-- Arguments tab -->
+            <div class="main-content" id="tab-arguments">
+                <div class="panel-content" id="args-panel">
+                    <?php if ($exception['arguments']): ?>
+                    <table class="args-table">
+                        <thead>
+                            <tr>
+                                <td class="arg-index">#</td>
+                                <td class="arg-name">Name</td>
+                                <td class="arg-type">Type</td>
+                                <td class="arg-value">Value</td>
+                            </tr>
+                        </thead>
+                        <tbody id="args-tbody">
+                            <?php $argIdx = 0; foreach ($exception['arguments'] as $argName => $arg): ?>
+                            <tr>
+                                <td class="arg-index"><?= $argIdx++ ?></td>
+                                <td class="arg-name">$<?= $e($argName) ?></td>
+                                <td class="arg-type"><?= $e($arg['type']) ?></td>
+                                <td class="arg-value"><?= $e($arg['value']) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    <?php else: ?>
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-variable">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M5 4c-2.5 5 -2.5 10 0 16m14 -16c2.5 5 2.5 10 0 16m-10 -11h1c1 0 1 1 2.016 3.527c.984 2.473 .984 3.473 1.984 3.473h1" />
+                            <path d="M8 16c1.5 0 3 -2 4 -3.5s2.5 -3.5 4 -3.5" />
+                        </svg>
+                        <p>No custom arguments for this exception</p>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Request tab -->
+            <div class="main-content" id="tab-request">
+                <div class="panel-content">
+                    <table class="panel-table">
+                        <tr><td class="key">Method</td><td class="value accent"><?= $e($request['method']) ?></td></tr>
+                        <tr><td class="key">URI</td><td class="value"><?= $e($request['path']) ?></td></tr>
+                        <tr><td class="key">URL</td><td class="value"><?= $e($request['uri']) ?></td></tr>
+                        <?php if ($request['query']): ?>
+                        <tr><td class="key">Query String</td><td class="value"><?= $e($request['query']) ?></td></tr>
+                        <?php endif; ?>
+                        <tr><td class="key">IP Address</td><td class="value"><?= $e($request['ip']) ?></td></tr>
+                        <tr><td class="key">Time</td><td class="value"><?= $e($request['time']) ?></td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <?php if ($getData): ?>
+            <!-- GET tab -->
+            <div class="main-content" id="tab-get">
+                <div class="panel-content">
+                    <table class="panel-table">
+                        <?php foreach ($getData as $key => $value): ?>
+                        <tr><td class="key"><?= $e((string)$key) ?></td><td class="value"><?= $e($dump($value)) ?></td></tr>
+                        <?php endforeach; ?>
+                    </table>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($postData): ?>
+            <!-- POST tab -->
+            <div class="main-content" id="tab-post">
+                <div class="panel-content">
+                    <table class="panel-table">
+                        <?php if (is_array($postData)): ?>
+                            <?php foreach ($postData as $key => $value): ?>
+                            <tr><td class="key"><?= $e((string)$key) ?></td><td class="value"><?= $e($dump($value)) ?></td></tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr><td class="value"><?= $e($dump($postData)) ?></td></tr>
+                        <?php endif; ?>
+                    </table>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($cookies): ?>
+            <!-- Cookies tab -->
+            <div class="main-content" id="tab-cookies">
+                <div class="panel-content">
+                    <table class="panel-table">
+                        <?php foreach ($cookies as $key => $value): ?>
+                        <tr><td class="key"><?= $e((string)$key) ?></td><td class="value"><?= $e($dump($value)) ?></td></tr>
+                        <?php endforeach; ?>
+                    </table>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($files): ?>
+            <!-- Files tab -->
+            <div class="main-content" id="tab-files">
+                <div class="panel-content">
+                    <table class="panel-table">
+                        <?php foreach ($files as $file): ?>
+                        <tr>
+                            <td class="key"><?= $e($file['name']) ?></td>
+                            <td class="value">
+                                <?= $e($file['clientName']) ?> 
+                                (<?= $e($file['type']) ?>, <?= $e($file['size']) ?>)
+                                <?php if ($file['error'] !== 'OK'): ?>
+                                    — <span style="color:var(--error)"><?= $e($file['error']) ?></span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </table>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($rawBody): ?>
+            <!-- Body tab -->
+            <div class="main-content" id="tab-body">
+                <div class="panel-content">
+                    <div class="raw-body"><?= $e($rawBody['content']) ?></div>
+                    <?php if ($rawBody['truncated']): ?>
+                    <div class="truncated-notice">Truncated. Total size: <?= number_format($rawBody['size']) ?> bytes</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Headers tab -->
+            <div class="main-content" id="tab-headers">
+                <div class="panel-content">
+                    <table class="panel-table">
+                        <?php foreach ($headers as $name => $value): ?>
+                        <tr><td class="key"><?= $e($name) ?></td><td class="value"><?= $e($value) ?></td></tr>
+                        <?php endforeach; ?>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Server tab -->
+            <div class="main-content" id="tab-server">
+                <div class="panel-content">
+                    <table class="panel-table">
+                        <tr><td class="key">PHP Version</td><td class="value accent"><?= $e($server['phpVersion']) ?></td></tr>
+                        <tr><td class="key">SAPI</td><td class="value"><?= $e($server['sapi']) ?></td></tr>
+                        <tr><td class="key">Server Software</td><td class="value"><?= $e($server['serverSoftware']) ?></td></tr>
+                        <tr><td class="key">Document Root</td><td class="value"><?= $e($server['documentRoot']) ?></td></tr>
+                        <tr><td class="key">Memory Usage</td><td class="value"><?= $e($server['memoryUsage']) ?></td></tr>
+                        <tr><td class="key">Peak Memory</td><td class="value"><?= $e($server['peakMemory']) ?></td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <?php if ($environment): ?>
+            <!-- Env tab -->
+            <div class="main-content" id="tab-env">
+                <div class="panel-content">
+                    <table class="panel-table">
+                        <?php foreach ($environment as $key => $value): ?>
+                        <tr><td class="key"><?= $e($key) ?></td><td class="value"><?= $e($value) ?></td></tr>
+                        <?php endforeach; ?>
+                    </table>
+                </div>
+            </div>
+            <?php endif; ?>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/php.min.js"></script>
+    <script>
+    (function() {
+        // Exception chain data for header and arguments updates
+        const exceptionChain = <?= json_encode(array_map(function ($exc) {
+            return [
+                    'index' => $exc['index'],
+                    'class' => $exc['class'],
+                    'shortClass' => $exc['shortClass'],
+                    'message' => $exc['message'],
+                    'code' => $exc['code'],
+                    'file' => $exc['file'],
+                    'shortFile' => $exc['shortFile'],
+                    'line' => $exc['line'],
+                    'arguments' => $exc['arguments'],
+            ];
+        }, $exceptionChain), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+        let currentExceptionIndex = 0;
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Update header with exception info
+        function updateHeader(excIndex) {
+            const exc = exceptionChain[excIndex];
+            if (!exc) return;
+            
+            currentExceptionIndex = excIndex;
+            
+            // Update type
+            const typeEl = document.getElementById('exc-type');
+            if (typeEl) {
+                typeEl.innerHTML = escapeHtml(exc.class) + 
+                    (exc.code ? ' <span class="exception-code">(' + escapeHtml(String(exc.code)) + ')</span>' : '');
+            }
+            
+            // Update message
+            const msgEl = document.getElementById('exc-message');
+            if (msgEl) {
+                msgEl.textContent = exc.message;
+            }
+            
+            // Update location
+            const locEl = document.getElementById('exc-location');
+            if (locEl) {
+                locEl.textContent = exc.shortFile + ':' + exc.line;
+            }
+            
+            // Update arguments panel
+            updateArgumentsPanel(exc);
+            
+            // Update search buttons
+            updateSearchButtons(exc);
+        }
+        
+        // Update arguments panel content
+        function updateArgumentsPanel(exc) {
+            const panel = document.getElementById('args-panel');
+            if (!panel) return;
+            
+            if (exc.arguments && Object.keys(exc.arguments).length > 0) {
+                let html = '<table class="args-table">';
+                html += '<thead><tr><td class="arg-index">#</td><td class="arg-name">Name</td><td class="arg-type">Type</td><td class="arg-value">Value</td></tr></thead>';
+                html += '<tbody>';
+                let idx = 0;
+                for (const name in exc.arguments) {
+                    const arg = exc.arguments[name];
+                    html += '<tr>';
+                    html += '<td class="arg-index">' + idx + '</td>';
+                    html += '<td class="arg-name">$' + escapeHtml(name) + '</td>';
+                    html += '<td class="arg-type">' + escapeHtml(arg.type) + '</td>';
+                    html += '<td class="arg-value">' + escapeHtml(arg.value) + '</td>';
+                    html += '</tr>';
+                    idx++;
+                }
+                html += '</tbody></table>';
+                panel.innerHTML = html;
+            } else {
+                panel.innerHTML = '<div class="empty-state"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-variable"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 4c-2.5 5 -2.5 10 0 16m14 -16c2.5 5 2.5 10 0 16m-10 -11h1c1 0 1 1 2.016 3.527c.984 2.473 .984 3.473 1.984 3.473h1" /><path d="M8 16c1.5 0 3 -2 4 -3.5s2.5 -3.5 4 -3.5" /></svg><p>No custom arguments for this exception</p></div>';
+            }
+        }
+        
+        // Update search buttons URLs
+        function updateSearchButtons(exc) {
+            const query = encodeURIComponent(exc.shortClass + ' ' + exc.message);
+            const buttons = document.querySelectorAll('.search-btn');
+            buttons.forEach(function(btn) {
+                const urlTemplate = btn.getAttribute('data-url-template');
+                if (urlTemplate) {
+                    btn.setAttribute('href', urlTemplate.replace('%s', query));
+                }
+            });
+        }
+
+        // Highlight all code blocks
+        document.querySelectorAll('code.language-php').forEach(function(block) {
+            hljs.highlightElement(block);
+        });
+
+        // Main tab switching
+        document.querySelectorAll('.main-tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                const tabId = this.getAttribute('data-tab');
+                document.querySelectorAll('.main-tab').forEach(function(t) { t.classList.remove('active'); });
+                document.querySelectorAll('.main-content').forEach(function(c) { c.classList.remove('active'); });
+                this.classList.add('active');
+                const content = document.getElementById('tab-' + tabId);
+                if (content) content.classList.add('active');
+            });
+        });
+
+        // Stack frame switching
+        function activateFrame(element) {
+            const frameId = element.getAttribute('data-frame');
+
+            // Hide all args
+            document.querySelectorAll('.frame-args-list').forEach(function(a) { 
+                a.classList.remove('show');
+            });
+            document.querySelectorAll('.frame-args-toggle .chevron').forEach(function(svg) {
+                svg.style.transform = '';
+            });
+            
+            // Switch active frame
+            document.querySelectorAll('.stack-frame').forEach(function(f) { 
+                f.classList.remove('active'); 
+            });
+            element.classList.add('active');
+            
+            // Show args of new active frame
+            const args = element.querySelector('.frame-args-list');
+            if (args) {
+                args.classList.add('show');
+                const chevron = element.querySelector('.frame-args-toggle .chevron');
+                if (chevron) chevron.style.transform = 'rotate(90deg)';
+            }
+            
+            // Switch code block
+            document.querySelectorAll('.code-block').forEach(function(b) { b.classList.remove('active'); });
+            const codeBlock = document.querySelector('.code-block[data-frame="' + frameId + '"]');
+            if (codeBlock) codeBlock.classList.add('active');
+            
+            // If this is an exception frame, update header and arguments
+            if (element.getAttribute('data-is-exception') === '1') {
+                const excIndex = parseInt(element.getAttribute('data-exc-index'), 10);
+                updateHeader(excIndex);
+            }
+        }
+
+        document.querySelectorAll('.stack-frame').forEach(function(frame) {
+            frame.addEventListener('click', function(e) {
+                // Don't switch if clicking on args toggle
+                if (e.target.closest('.frame-args-toggle')) return;
+                activateFrame(this);
+            });
+        });
+
+        // Copy path button
+        document.querySelectorAll('.code-action[data-path]').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const path = this.getAttribute('data-path');
+                if (navigator.clipboard && path) {
+                    navigator.clipboard.writeText(path);
+                }
+            });
+        });
+
+        // Arguments toggle
+        document.querySelectorAll('.frame-args-toggle').forEach(function(toggle) {
+            toggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const targetId = this.getAttribute('data-toggle');
+                const target = document.getElementById(targetId);
+                if (target) {
+                    target.classList.toggle('show');
+                    const chevron = this.querySelector('.chevron');
+                    if (chevron) {
+                        chevron.style.transform = target.classList.contains('show') ? 'rotate(90deg)' : '';
+                    }
+                }
+            });
+        });
+
+        // Show args on first active frame by default
+        const activeFrame = document.querySelector('.stack-frame.active');
+        if (activeFrame) {
+            const args = activeFrame.querySelector('.frame-args-list');
+            if (args) {
+                args.classList.add('show');
+                const chevron = activeFrame.querySelector('.frame-args-toggle .chevron');
+                if (chevron) chevron.style.transform = 'rotate(90deg)';
+            }
+        }
+    })();
+    </script>
+</body>
+</html>
