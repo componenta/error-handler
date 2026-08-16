@@ -6,7 +6,7 @@
     "require": {
         "php": "^8.4",
         "ext-mbstring": "*",
-        "componenta/config": "^2.0",
+        "componenta/config": "^2.0.2",
         "nyholm/psr7-server": "^1.1",
         "psr/container": "^2.0",
         "psr/http-factory": "^1.1",
