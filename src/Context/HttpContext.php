@@ -53,7 +53,7 @@ final readonly class HttpContext extends AbstractErrorContext implements HttpErr
     {
         return new self(
             $this->request,
-            array_merge($this->attributes, $attributes),
+            array_replace($this->attributes, $attributes),
         );
     }
 }

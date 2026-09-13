@@ -284,10 +284,10 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             }
 
             // Protect against circular references
-            if ($visited->contains($current)) {
+            if ($visited->offsetExists($current)) {
                 break;
             }
-            $visited->attach($current);
+            $visited->offsetSet($current);
 
             $chain[] = [
                 'index' => $index,
@@ -328,10 +328,10 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             if ($this->maxExceptions !== null && count($exceptions) >= $this->maxExceptions) {
                 break;
             }
-            if ($visited->contains($current)) {
+            if ($visited->offsetExists($current)) {
                 break;
             }
-            $visited->attach($current);
+            $visited->offsetSet($current);
             $exceptions[] = $current;
             $current = $current->getPrevious();
         }

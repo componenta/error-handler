@@ -39,7 +39,7 @@ final class ErrorListenerProviderTest extends TestCase
         ), priority: 50);
 
         foreach ($provider->getListeners() as $listener) {
-            $listener->handleEvent($this->createMock(ErrorEventInterface::class));
+            $listener->handleEvent($this->createStub(ErrorEventInterface::class));
         }
 
         self::assertSame(['high', 'medium', 'low'], $order);
@@ -66,7 +66,7 @@ final class ErrorListenerProviderTest extends TestCase
         $provider1->merge($provider2);
 
         foreach ($provider1->getListeners() as $listener) {
-            $listener->handleEvent($this->createMock(ErrorEventInterface::class));
+            $listener->handleEvent($this->createStub(ErrorEventInterface::class));
         }
 
         self::assertCount(2, $order);
@@ -92,7 +92,7 @@ final class ErrorListenerProviderTest extends TestCase
         $provider1->merge($provider2);
 
         foreach ($provider1->getListeners() as $mergedListener) {
-            $mergedListener->handleEvent($this->createMock(ErrorEventInterface::class));
+            $mergedListener->handleEvent($this->createStub(ErrorEventInterface::class));
         }
 
         self::assertSame(1, $called);
@@ -117,14 +117,14 @@ final class ErrorListenerProviderTest extends TestCase
             function () use (&$order): void {
                 $order[] = 'runtime';
             },
-            fn(\Throwable $e, ErrorContextInterface $c): bool => $e instanceof RuntimeException,
+            fn (\Throwable $e, ErrorContextInterface $c): bool => $e instanceof RuntimeException,
         ));
 
         $provider->addListener(ErrorListener::createFrom(
             function () use (&$order): void {
                 $order[] = 'invalid';
             },
-            fn(\Throwable $e, ErrorContextInterface $c): bool => $e instanceof \InvalidArgumentException,
+            fn (\Throwable $e, ErrorContextInterface $c): bool => $e instanceof \InvalidArgumentException,
         ));
 
         $provider->addListener(ErrorListener::createFrom(
@@ -140,7 +140,7 @@ final class ErrorListenerProviderTest extends TestCase
         self::assertCount(2, $listeners);
 
         foreach ($listeners as $listener) {
-            $listener->handleEvent($this->createMock(ErrorEventInterface::class));
+            $listener->handleEvent($this->createStub(ErrorEventInterface::class));
         }
 
         self::assertContains('runtime', $order);

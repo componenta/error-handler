@@ -37,9 +37,9 @@ final class ErrorListener implements ErrorListenerInterface
     ) {
         $this->callback = $callback;
         $this->supports = match (true) {
+            is_callable($supports) => $supports,
             is_string($supports) => static fn(Throwable $throwable): bool => $throwable instanceof $supports,
             is_array($supports) => static fn(Throwable $throwable): bool => array_any($supports, static fn(string $cls): bool => $throwable instanceof $cls),
-            is_callable($supports) => $supports,
             default => null,
         };
     }

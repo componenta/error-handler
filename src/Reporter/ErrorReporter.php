@@ -36,12 +36,12 @@ final class ErrorReporter implements ErrorReporterInterface
     public function addNonReportableError(string|array|callable $filter): void
     {
         $this->nonReportable[] = match (true) {
+            is_callable($filter) => $filter,
             is_string($filter) => static fn(Throwable $e, ErrorContextInterface $c): bool => $e instanceof $filter,
-            is_array($filter) => static fn(Throwable $e, ErrorContextInterface $c): bool => array_any(
+            default => static fn(Throwable $e, ErrorContextInterface $c): bool => array_any(
                 $filter,
                 static fn(string $class): bool => $e instanceof $class,
             ),
-            default => $filter,
         };
     }
 

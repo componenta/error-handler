@@ -501,7 +501,10 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
                     $output[] = sprintf(
                         '    %s Arguments: %s',
                         self::ICON_DOT,
-                        $this->color(json_encode($args, JSON_UNESCAPED_SLASHES), self::FG_WHITE),
+                        $this->color(
+                            json_encode($args, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '(unavailable)',
+                            self::FG_WHITE,
+                        ),
                     );
                 }
             }
@@ -515,7 +518,10 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
                         $output[] = sprintf(
                             '    %s Options: %s',
                             self::ICON_DOT,
-                            $this->color(json_encode($filteredOptions, JSON_UNESCAPED_SLASHES), self::FG_WHITE),
+                            $this->color(
+                                json_encode($filteredOptions, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '(unavailable)',
+                                self::FG_WHITE,
+                            ),
                         );
                     }
                 }
@@ -523,7 +529,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         }
 
         // Custom attributes
-        $attributes = $context->attributes;
+        $attributes = $context->getAttributes();
         if (!empty($attributes)) {
             $output[] = '';
             $output[] = $this->color('  Attributes:', self::FG_GREEN, self::BOLD);
@@ -636,16 +642,16 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     private function getExceptionType(Throwable $exception): string
     {
         return match (true) {
+            $exception instanceof \ArgumentCountError => 'Argument Count Error',
+            $exception instanceof \TypeError => 'Type Error',
+            $exception instanceof \ValueError => 'Value Error',
             $exception instanceof \Error => 'PHP Error',
             $exception instanceof \ErrorException => 'Error Exception',
-            $exception instanceof \TypeError => 'Type Error',
-            $exception instanceof \ArgumentCountError => 'Argument Count Error',
-            $exception instanceof \ValueError => 'Value Error',
-            $exception instanceof \RuntimeException => 'Runtime Exception',
-            $exception instanceof \LogicException => 'Logic Exception',
             $exception instanceof \InvalidArgumentException => 'Invalid Argument',
             $exception instanceof \OutOfBoundsException => 'Out of Bounds',
+            $exception instanceof \RuntimeException => 'Runtime Exception',
             $exception instanceof \DomainException => 'Entity Exception',
+            $exception instanceof \LogicException => 'Logic Exception',
             default => 'Exception',
         };
     }

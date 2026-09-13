@@ -62,7 +62,7 @@ final readonly class CliContext extends AbstractErrorContext implements CliError
         return new self(
             $this->input,
             $this->output,
-            array_merge($this->attributes, $attributes),
+            array_replace($this->attributes, $attributes),
         );
     }
 }
