@@ -28,10 +28,12 @@ final class DiagnosticBudgetTest extends TestCase
         self::assertLessThan(300_000, strlen(json_encode($result, JSON_THROW_ON_ERROR)));
     }
 
-    public function testChunkedDiagnosticReadRestoresPositionAndRedactsSecrets(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('eofModes')]
+    public function testChunkedDiagnosticReadRestoresPositionAndRedactsSecrets(bool $delayedEof): void
     {
         $payload = '{"password":"redact-me","name":"visible-value"}';
         $position = 5;
+        $readPastEnd = false;
         $stream = $this->createStub(StreamInterface::class);
         $stream->method('isReadable')->willReturn(true);
         $stream->method('isSeekable')->willReturn(true);
@@ -44,13 +46,16 @@ final class DiagnosticBudgetTest extends TestCase
         $stream->method('seek')->willReturnCallback(static function (int $offset) use (&$position): void {
             $position = $offset;
         });
-        $stream->method('read')->willReturnCallback(static function (int $length) use (&$position, $payload): string {
+        $stream->method('read')->willReturnCallback(static function (int $length) use (&$position, &$readPastEnd, $payload): string {
             $chunk = substr($payload, $position, min($length, 5));
+            if ($chunk === '') {
+                $readPastEnd = true;
+            }
             $position += strlen($chunk);
             return $chunk;
         });
-        $stream->method('eof')->willReturnCallback(static function () use (&$position, $payload): bool {
-            return $position >= strlen($payload);
+        $stream->method('eof')->willReturnCallback(static function () use (&$position, &$readPastEnd, $payload, $delayedEof): bool {
+            return $delayedEof ? $readPastEnd : $position >= strlen($payload);
         });
 
         $request = (new ServerRequest('POST', '/', ['Content-Type' => 'application/json']))->withBody($stream);
@@ -67,5 +72,11 @@ final class DiagnosticBudgetTest extends TestCase
         } finally {
             unlink($template);
         }
+    }
+
+    public static function eofModes(): iterable
+    {
+        yield 'EOF at end' => [false];
+        yield 'EOF after empty read' => [true];
     }
 }

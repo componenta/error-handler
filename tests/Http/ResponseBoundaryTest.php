@@ -99,7 +99,14 @@ final class ResponseBoundaryTest extends TestCase
             $actual .= $part;
             return strlen($part);
         });
-        \Componenta\Error\Internal\StreamWriter::write($stream, $body);
+        $renderer = $this->createStub(\Componenta\Error\Renderer\ErrorRendererInterface::class);
+        $renderer->method('render')->willReturn(new \Componenta\Error\Renderer\RenderedError($body, 'text/plain'));
+        $factory = $this->createStub(ResponseFactoryInterface::class);
+        $factory->method('createResponse')->willReturn((new Psr17Factory())->createResponse(500)->withBody($stream));
+        (new HttpErrorResponseGenerator($factory, $renderer))->generate(
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
+            new HttpContext(new ServerRequest('GET', '/')),
+        );
         self::assertSame($body, $actual);
     }
 }

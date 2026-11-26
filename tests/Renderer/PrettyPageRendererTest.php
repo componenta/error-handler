@@ -69,4 +69,36 @@ final class PrettyPageRendererTest extends TestCase
     {
         return new HttpContext(new ServerRequest('GET', '/'));
     }
+
+    public function testPathShorteningDoesNotReuseRelativeResolutionAfterCwdChanges(): void
+    {
+        $cwd = getcwd();
+        self::assertIsString($cwd);
+        $root = sys_get_temp_dir() . '/error-path-' . bin2hex(random_bytes(8));
+        mkdir($root, 0700);
+        mkdir($root . '/other', 0700);
+        file_put_contents($root . '/source.php', '<?php');
+        file_put_contents($root . '/other/source.php', '<?php');
+        file_put_contents($root . '/template.phtml', '<?= $e($exception["shortFile"]) ?>');
+        try {
+            chdir($root);
+            $renderer = new PrettyPageRenderer(templatePath: $root . '/template.phtml', includeSource: false);
+            $cold = new PrettyPageRenderer(templatePath: $root . '/template.phtml', includeSource: false);
+            $exception = new class extends RuntimeException {
+                public function __construct() { parent::__construct('test'); $this->file = 'source.php'; }
+            };
+            $error = new ErrorOccurrence($exception, 'ERR-test');
+            self::assertSame('./source.php', $renderer->render($error, $this->context())->content);
+            chdir($root . '/other');
+            self::assertSame('./other/source.php', $cold->render($error, $this->context())->content);
+            self::assertSame($cold->render($error, $this->context())->content, $renderer->render($error, $this->context())->content);
+        } finally {
+            chdir($cwd);
+            unlink($root . '/source.php');
+            unlink($root . '/other/source.php');
+            unlink($root . '/template.phtml');
+            rmdir($root . '/other');
+            rmdir($root);
+        }
+    }
 }

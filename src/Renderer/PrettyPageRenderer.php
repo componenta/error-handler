@@ -31,11 +31,8 @@ final class PrettyPageRenderer implements ErrorRendererInterface
     public const string THEME_DARK = 'dark';
     public const string THEME_LIGHT = 'light';
 
-    /** @var array<string, string> Cache for shortened paths */
-    private array $shortPathCache = [];
-
     /** @var array<string, string> Cache for base paths */
-    private array $basePaths;
+    private readonly array $basePaths;
 
     /**
      * Built-in search providers
@@ -679,15 +676,15 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             if (is_array($file)) {
                 // Nested files
                 foreach ($this->formatUploadedFiles($file, $depth + 1, $remaining) as $nested) {
-                    $nested['name'] = $key . '[' . $nested['name'] . ']';
+                    $nested['name'] = mb_strcut((string) $key, 0, 256, 'UTF-8') . '[' . $nested['name'] . ']';
                     $formatted[] = $nested;
                 }
             } elseif ($file instanceof \Psr\Http\Message\UploadedFileInterface) {
                 $formatted[] = [
-                    'name' => (string) $key,
-                    'clientName' => $file->getClientFilename() ?? 'unknown',
+                    'name' => mb_strcut((string) $key, 0, 256, 'UTF-8'),
+                    'clientName' => mb_strcut($file->getClientFilename() ?? 'unknown', 0, 4096, 'UTF-8'),
                     'size' => $this->formatBytes($file->getSize() ?? 0),
-                    'type' => $file->getClientMediaType() ?? 'unknown',
+                    'type' => mb_strcut($file->getClientMediaType() ?? 'unknown', 0, 256, 'UTF-8'),
                     'error' => $this->getUploadErrorMessage($file->getError()),
                 ];
             }
@@ -721,9 +718,10 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      */
     private function getRawBody(ServerRequestInterface $request): ?array
     {
-        $body = $request->getBody();
+        $body = null;
         $position = null;
         try {
+            $body = $request->getBody();
             $type = strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0]));
             if ($type !== 'application/json' || !$body->isReadable() || !$body->isSeekable()) {
                 return null;
@@ -735,6 +733,10 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             while (!$body->eof() && strlen($content) < $limit) {
                 $chunk = $body->read($limit - strlen($content));
                 if ($chunk === '') {
+                    // Some valid streams set EOF only after the final empty read.
+                    if ($body->eof()) {
+                        break;
+                    }
                     return null;
                 }
                 $content .= $chunk;
@@ -754,7 +756,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         } catch (\Throwable) {
             return null;
         } finally {
-            if ($position !== null) {
+            if ($body !== null && $position !== null) {
                 try {
                     $body->seek($position);
                 } catch (\Throwable $failure) {
@@ -918,13 +920,6 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      */
     private function getShortPath(string $path): string
     {
-        if (isset($this->shortPathCache[$path])) {
-            return $this->shortPathCache[$path];
-        }
-
-        if (count($this->shortPathCache) >= 256) {
-            $this->shortPathCache = [];
-        }
         $realPath = realpath($path) ?: $path;
 
         foreach ($this->basePaths as $base) {
@@ -932,14 +927,12 @@ final class PrettyPageRenderer implements ErrorRendererInterface
                 $short = './' . ltrim(substr($realPath, strlen($base)), '/\\');
                 // Normalize to forward slashes
                 $short = str_replace('\\', '/', $short);
-                $this->shortPathCache[$path] = $short;
                 return $short;
             }
         }
 
         // Normalize to forward slashes even for non-matched paths
         $normalized = str_replace('\\', '/', $path);
-        $this->shortPathCache[$path] = $normalized;
         return $normalized;
     }
 
