@@ -220,11 +220,12 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         }
 
         // Code
-        if ($exception->getCode() !== 0) {
+        $exceptionCode = \Componenta\Error\Diagnostic\DiagnosticData::normalizeExceptionCode($exception->getCode());
+        if ($exceptionCode !== 0) {
             $code = sprintf(
                 '%s Code: %s',
                 self::ICON_INFO,
-                $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal((string) $exception->getCode()), self::FG_BRIGHT_MAGENTA),
+                $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal((string) $exceptionCode), self::FG_BRIGHT_MAGENTA),
             );
             $lines[] = $code;
         }

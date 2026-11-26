@@ -40,7 +40,7 @@ readonly class JsonRenderer implements ErrorRendererInterface
         $data = [
             'error' => [
                 'type' => $exception::class,
-                'code' => $exception->getCode(),
+                'code' => \Componenta\Error\Diagnostic\DiagnosticData::normalizeExceptionCode($exception->getCode()),
                 'message' => \Componenta\Error\Diagnostic\DiagnosticData::boundedText($exception->getMessage()),
             ],
         ];
@@ -106,7 +106,7 @@ readonly class JsonRenderer implements ErrorRendererInterface
         while ($exception !== null && count($chain) < 32) {
             $chain[] = [
                 'type' => $exception::class,
-                'code' => $exception->getCode(),
+                'code' => \Componenta\Error\Diagnostic\DiagnosticData::normalizeExceptionCode($exception->getCode()),
                 'message' => \Componenta\Error\Diagnostic\DiagnosticData::boundedText($exception->getMessage()),
                 'file' => $exception->getFile(),
                 'line' => $exception->getLine(),

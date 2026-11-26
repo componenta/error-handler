@@ -38,7 +38,7 @@ readonly class HtmlRenderer implements ErrorRendererInterface
         $exception = $error->exception;
         $type = htmlspecialchars($exception::class, ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
         $message = htmlspecialchars(\Componenta\Error\Diagnostic\DiagnosticData::boundedText($exception->getMessage()), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
-        $code = htmlspecialchars((string) $exception->getCode(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
+        $code = htmlspecialchars((string) \Componenta\Error\Diagnostic\DiagnosticData::normalizeExceptionCode($exception->getCode()), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
 
         $charset = htmlspecialchars($this->charset, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $debug = '';

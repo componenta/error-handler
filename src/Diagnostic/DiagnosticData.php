@@ -38,6 +38,19 @@ final class DiagnosticData
         return mb_strcut($value, 0, $limit - 3, 'UTF-8') . '...';
     }
 
+    /**
+     * @internal Exception subclasses can set the untyped protected code property
+     * to arbitrary values. Never stringify or serialize those application objects.
+     */
+    public static function normalizeExceptionCode(mixed $code): int|string
+    {
+        return match (true) {
+            is_int($code) => $code,
+            is_string($code) => self::boundedText($code),
+            default => '[invalid exception code]',
+        };
+    }
+
     /** Escapes terminal controls while keeping ordinary UTF-8, tabs and newlines. */
     public static function terminal(string $value): string
     {
