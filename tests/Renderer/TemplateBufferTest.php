@@ -19,6 +19,7 @@ final class TemplateBufferTest extends TestCase
     {
         yield 'unbalanced success' => ['outer<?php ob_start(); echo "nested"; ?>'];
         yield 'exception in nested buffer' => ['outer<?php ob_start(); echo "nested"; throw new RuntimeException("template failed"); ?>'];
+        yield 'throwing output handler' => ['outer<?php ob_start(static function (string $value): string { throw new RuntimeException("cleanup failed"); }); echo "nested"; throw new RuntimeException("template failed"); ?>'];
     }
 
     #[DataProvider('brokenTemplates')]

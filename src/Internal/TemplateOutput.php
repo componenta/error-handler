@@ -51,8 +51,8 @@ final class TemplateOutput
                     break;
                 }
                 try {
-                    self::discardBuffer();
-                } catch (Throwable $failure) {
+                    ob_end_clean();
+                } catch (Throwable $failure) { // @phpstan-ignore catch.neverThrown (PHP invokes user-supplied output handlers during cleanup.)
                     FailureLog::write('template output buffer', $failure);
                 }
                 if (ob_get_level() >= $before) {
@@ -60,11 +60,5 @@ final class TemplateOutput
                 }
             }
         }
-    }
-
-    /** @throws Throwable User-defined output handlers may throw during cleanup. */
-    private static function discardBuffer(): void
-    {
-        ob_end_clean();
     }
 }
