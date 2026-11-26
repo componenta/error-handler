@@ -136,7 +136,7 @@ jobs:
         run: |
           composer config repositories.error-handler '{"type":"path","url":"../core","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
           composer validate --strict
-          composer require --dev --no-interaction --no-update 'componenta/di:^6.0@dev'
+          composer require --dev --no-interaction --no-update 'componenta/di:dev-main'
           composer update --no-interaction --prefer-dist
           composer audit --locked --no-dev --no-interaction
           composer test
