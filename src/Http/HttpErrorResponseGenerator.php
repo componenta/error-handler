@@ -63,6 +63,7 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
         $response = $response
             ->withHeader('Content-Type', $rendered->contentType)
             ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('Referrer-Policy', 'no-referrer')
             ->withHeader('X-Content-Type-Options', 'nosniff')
             ->withAddedHeader('Vary', 'Accept');
 

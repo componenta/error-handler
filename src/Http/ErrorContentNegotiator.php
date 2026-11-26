@@ -27,12 +27,12 @@ final class ErrorContentNegotiator
         $specificity = -1;
         $quality = 0.0;
 
-        foreach (explode(',', $accept) as $entry) {
-            $parts = explode(';', $entry);
-            $media = strtolower(trim(array_shift($parts)));
+        foreach (self::split($accept, ',') as $entry) {
+            $parts = self::split($entry, ';');
+            $media = strtolower(trim(array_shift($parts) ?? ''));
             $rank = match ($media) {
-                $type => 2,
-                $major . '/*' => 1,
+                $type => 4,
+                $major . '/*' => 2,
                 '*/*' => 0,
                 default => -1,
             };
@@ -42,6 +42,7 @@ final class ErrorContentNegotiator
             }
 
             $q = 1.0;
+            $charset = false;
             foreach ($parts as $parameter) {
                 [$key, $value] = array_pad(explode('=', trim($parameter), 2), 2, '');
                 $key = strtolower(trim($key));
@@ -53,10 +54,12 @@ final class ErrorContentNegotiator
                 }
                 // Both built-in representations are UTF-8. Do not match
                 // representation parameters we cannot satisfy.
-                if ($key !== 'charset' || strtolower(trim($value, " \t\"")) !== 'utf-8') {
+                if ($key !== 'charset' || $charset || !in_array(strtolower(trim($value)), ['utf-8', '"utf-8"'], true)) {
                     $rank = -1;
                     break;
                 }
+                $charset = true;
+                ++$rank;
             }
 
             if ($rank < 0) {
@@ -68,5 +71,39 @@ final class ErrorContentNegotiator
         }
 
         return $quality;
+    }
+
+    /** @return list<string> Split a list without treating quoted delimiters as separators. */
+    private static function split(string $value, string $delimiter): array
+    {
+        if (!str_contains($value, '"')) {
+            return explode($delimiter, $value);
+        }
+
+        $parts = [];
+        $start = 0;
+        $quoted = false;
+        $length = strlen($value);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $value[$index];
+            if ($quoted && $char === '\\') {
+                ++$index;
+                continue;
+            }
+            if ($char === '"') {
+                $quoted = !$quoted;
+                continue;
+            }
+            if (!$quoted && $char === $delimiter) {
+                $parts[] = substr($value, $start, $index - $start);
+                $start = $index + 1;
+            }
+        }
+        if (!$quoted) {
+            $parts[] = substr($value, $start);
+        }
+
+        return $parts;
     }
 }

@@ -27,6 +27,7 @@ final class ErrorRepresentationTest extends TestCase
         self::assertSame($contentType . '; charset=utf-8', $response->getHeaderLine('Content-Type'));
         self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
         self::assertSame('nosniff', $response->getHeaderLine('X-Content-Type-Options'));
+        self::assertSame('no-referrer', $response->getHeaderLine('Referrer-Policy'));
         self::assertSame('Accept', $response->getHeaderLine('Vary'));
         if ($contentType === 'application/json') {
             self::assertIsArray(json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR));
@@ -42,6 +43,10 @@ final class ErrorRepresentationTest extends TestCase
         yield ['text/html;q=0, application/*;q=0.5', 'application/json'];
         yield ['application/json-foo', 'text/html'];
         yield ['*/*', 'text/html'];
+        yield ['application/json;charset=utf-8;q=0, application/json;q=1, text/html;q=0.5', 'text/html'];
+        yield ['application/json;q=0, application/json;charset="UTF-8";q=0.9, text/html;q=0.5', 'application/json'];
+        yield ['text/html;profile="a,b;c", application/json', 'application/json'];
+        yield ['application/json;profile="unterminated', 'text/html'];
     }
 
     public function testDeclaredRepresentationWinsOverAcceptAndHeadHasNoBody(): void

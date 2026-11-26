@@ -55,6 +55,18 @@ final class PrettyPageRendererTest extends TestCase
         self::assertStringContainsString('inv-100', $output);
     }
 
+    public function testDebugPageDisplaysCorrelationAndDisablesReferrers(): void
+    {
+        $context = $this->context()->withAttribute(
+            \Componenta\Error\Context\ErrorContextAttribute::ERROR_ID,
+            'ERR-correlation-123',
+        );
+        $html = (new PrettyPageRenderer(includeSource: false))->render(new RuntimeException('failure'), $context);
+
+        self::assertStringContainsString('Error ID: ERR-correlation-123', $html);
+        self::assertStringContainsString('<meta name="referrer" content="no-referrer">', $html);
+    }
+
     private function context(): HttpContext
     {
         return new HttpContext(new ServerRequest('GET', '/'));

@@ -3,6 +3,7 @@
  * Pretty error page template
  *
  * @var bool $debug
+ * @var string|null $errorId
  * @var string $applicationName
  * @var string $accentColor
  * @var string $errorColor
@@ -30,6 +31,7 @@ if (!$debug): ?>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Error <?= $e((string)($exception['code'] ?: 500)) ?></title>
     <style>
@@ -52,6 +54,7 @@ if (!$debug): ?>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $e($exception['class']) ?> — <?= $e($applicationName) ?></title>
     <style>
@@ -506,6 +509,9 @@ if (!$debug): ?>
                     <?= $e($applicationName) ?>
                 </div>
                 
+                <?php if ($errorId !== null): ?>
+                <div class="exception-location">Error ID: <?= $e($errorId) ?></div>
+                <?php endif; ?>
                 <div id="exception-info">
                     <div class="exception-type" id="exc-type">
                         <?= $e($exception['class']) ?>
@@ -524,7 +530,7 @@ if (!$debug): ?>
                         <?php foreach ($searchProviders as $provider): ?>
                         <a href="<?= $e(sprintf($provider['url'], $searchQuery)) ?>" 
                            target="_blank" 
-                           rel="noopener" 
+                           rel="noopener noreferrer" 
                            class="search-btn <?= $e($provider['class'] ?? '') ?>"
                            data-url-template="<?= $e($provider['url']) ?>">
                             <?= $provider['icon'] ?>

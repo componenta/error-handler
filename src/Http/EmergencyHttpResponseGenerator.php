@@ -27,6 +27,7 @@ final readonly class EmergencyHttpResponseGenerator implements HttpErrorResponse
         $response = $this->factory->createResponse(500)
             ->withHeader('Content-Type', 'text/plain; charset=utf-8')
             ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('Referrer-Policy', 'no-referrer')
             ->withHeader('X-Content-Type-Options', 'nosniff');
         if (strtoupper($context->request->getMethod()) !== 'HEAD') {
             $id = \Componenta\Error\Internal\ErrorCorrelation::read($context);

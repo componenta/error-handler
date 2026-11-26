@@ -200,6 +200,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         return [
             // Config
             'debug' => $this->debug,
+            'errorId' => \Componenta\Error\Internal\ErrorCorrelation::read($context),
             'applicationName' => $this->applicationName,
             'accentColor' => $this->accentColor,
             'errorColor' => $this->errorColor,
