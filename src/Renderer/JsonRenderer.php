@@ -71,6 +71,7 @@ readonly class JsonRenderer implements HttpErrorRendererInterface
 
     /**
      * Format stack trace for JSON
+     * @return list<array{file: ?string, line: ?int, function: string, class: ?string, type: ?string}>
      */
     private function formatTrace(Throwable $exception): array
     {
@@ -78,7 +79,7 @@ readonly class JsonRenderer implements HttpErrorRendererInterface
             static fn(array $frame): array => [
                 'file' => $frame['file'] ?? null,
                 'line' => $frame['line'] ?? null,
-                'function' => $frame['function'] ?? null,
+                'function' => $frame['function'],
                 'class' => $frame['class'] ?? null,
                 'type' => $frame['type'] ?? null,
             ],
@@ -88,12 +89,13 @@ readonly class JsonRenderer implements HttpErrorRendererInterface
 
     /**
      * Format previous exceptions chain
+     * @return list<array{type: string, code: int|string, message: string, file: string, line: int}>
      */
     private function formatPrevious(Throwable $exception): array
     {
         $chain = [];
 
-        while ($exception !== null) {
+        while ($exception !== null && count($chain) < 32) {
             $chain[] = [
                 'type' => $exception::class,
                 'code' => $exception->getCode(),

@@ -14,7 +14,7 @@ use Throwable;
  * Pretty HTML error renderer with stack trace visualization
  *
  * Extracts error data and renders it using a template file.
- * Uses Highlight.js for syntax highlighting.
+ * Self-contained diagnostic page without remote assets.
  */
 final class PrettyPageRenderer implements HttpErrorRendererInterface
 {
@@ -141,7 +141,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         }
 
         $docRoot = $_SERVER['DOCUMENT_ROOT'] ?? null;
-        if ($docRoot !== null && $docRoot !== '') {
+        if (is_string($docRoot) && $docRoot !== '') {
             $realDocRoot = realpath($docRoot);
             if ($realDocRoot !== false) {
                 $paths['docRoot'] = $realDocRoot;
@@ -188,6 +188,8 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
     {
         $request = $context->request;
         $serverParams = $request->getServerParams();
+        $requestTime = $serverParams['REQUEST_TIME'] ?? null;
+        $remoteAddress = $serverParams['REMOTE_ADDR'] ?? null;
 
         // Build exception chain info (for header display)
         $exceptionChain = $this->buildExceptionChain($exception);
@@ -217,10 +219,8 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
                 'uri' => (string) $request->getUri()->withUserInfo('')->withQuery('')->withFragment(''),
                 'path' => $request->getUri()->getPath(),
                 'query' => '',
-                'ip' => $serverParams['REMOTE_ADDR']
-                    ?? $request->getHeaderLine('X-Forwarded-For')
-                        ?? 'unknown',
-                'time' => date('Y-m-d H:i:s', (int) ($serverParams['REQUEST_TIME'] ?? time())),
+                'ip' => is_string($remoteAddress) ? $remoteAddress : 'unknown',
+                'time' => date('Y-m-d H:i:s', is_int($requestTime) ? $requestTime : time()),
             ],
 
             // GET parameters
@@ -230,7 +230,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             'postData' => \Componenta\Error\Diagnostic\DiagnosticData::sanitize($request->getParsedBody()),
 
             // Cookies
-            'cookies' => array_fill_keys(array_keys($request->getCookieParams()), \Componenta\Error\Diagnostic\DiagnosticData::REDACTED),
+            'cookies' => array_fill_keys(array_keys(array_slice($request->getCookieParams(), 0, 100, true)), \Componenta\Error\Diagnostic\DiagnosticData::REDACTED),
 
             // Uploaded files
             'files' => $this->formatUploadedFiles($request->getUploadedFiles()),
@@ -325,7 +325,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
      * 2. Frames from inner exceptions (excluding common tail with outer)
      * 3. Full trace of outer exception
      *
-     * @return list<array>
+     * @return list<array<string, mixed>>
      */
     private function buildUnifiedFrames(Throwable $exception): array
     {
@@ -411,6 +411,8 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
      * Find the length of common tail (suffix) between two traces
      *
      * Compares traces from the end to find how many frames are identical
+     * @param list<array{function?: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object}> $innerTrace
+     * @param list<array{function?: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object}> $outerTrace
      */
     private function findCommonTailLength(array $innerTrace, array $outerTrace): int
     {
@@ -435,6 +437,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
 
     /**
      * Build a unique key for frame comparison
+     * @param array{function?: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object} $frame
      */
     private function buildFrameKey(array $frame): string
     {
@@ -449,6 +452,8 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
 
     /**
      * Build frame data array from trace frame
+     * @param array{function?: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object} $traceFrame
+     * @return array<string, mixed>
      */
     private function buildFrameData(array $traceFrame, int $index, int $excIndex): array
     {
@@ -603,6 +608,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
 
     /**
      * Format array for display
+     * @param array<array-key, mixed> $value
      */
     private function formatArray(array $value, int $depth): string
     {
@@ -650,23 +656,29 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
     /**
      * Format uploaded files
      *
-     * @param array<string, mixed> $files
-     * @return list<array{name: string, size: string, type: string, error: string}>
+     * @param array<array-key, mixed> $files
+     * @return list<array{name: string, clientName: string, size: string, type: string, error: string}>
      */
-    private function formatUploadedFiles(array $files): array
+    private function formatUploadedFiles(array $files, int $depth = 0): array
     {
+        if ($depth >= 5) {
+            return [];
+        }
         $formatted = [];
 
-        foreach ($files as $key => $file) {
+        foreach (array_slice($files, 0, 100, true) as $key => $file) {
+            if (count($formatted) >= 100) {
+                break;
+            }
             if (is_array($file)) {
                 // Nested files
-                foreach ($this->formatUploadedFiles($file) as $nested) {
+                foreach ($this->formatUploadedFiles($file, $depth + 1) as $nested) {
                     $nested['name'] = $key . '[' . $nested['name'] . ']';
                     $formatted[] = $nested;
                 }
             } elseif ($file instanceof \Psr\Http\Message\UploadedFileInterface) {
                 $formatted[] = [
-                    'name' => $key,
+                    'name' => (string) $key,
                     'clientName' => $file->getClientFilename() ?? 'unknown',
                     'size' => $this->formatBytes($file->getSize() ?? 0),
                     'type' => $file->getClientMediaType() ?? 'unknown',
@@ -675,7 +687,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             }
         }
 
-        return $formatted;
+        return array_slice($formatted, 0, 100);
     }
 
     /**
@@ -751,7 +763,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
     /**
      * Flatten headers array to key-value pairs
      *
-     * @param array<string, list<string>> $headers
+     * @param array<array-key, array<string>> $headers
      * @return array<string, string>
      */
     private function flattenHeaders(array $headers): array
@@ -759,7 +771,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         $result = [];
         foreach (array_slice($headers, 0, 100, true) as $name => $values) {
             // Only recognized non-credential headers expose their values.
-            $result[$name] = in_array(strtolower($name), ['accept', 'accept-language', 'content-type', 'content-length', 'host', 'user-agent'], true)
+            $result[(string) $name] = in_array(strtolower((string) $name), ['accept', 'accept-language', 'content-type', 'content-length', 'host', 'user-agent'], true)
                 ? mb_strcut(implode(', ', $values), 0, 4096, 'UTF-8')
                 : \Componenta\Error\Diagnostic\DiagnosticData::REDACTED;
         }
@@ -778,8 +790,8 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
 
         foreach ($keys as $key) {
             $value = $_ENV[$key] ?? getenv($key);
-            if ($value !== false && $value !== null && $value !== '') {
-                $safe[$key] = (string) $value;
+            if (is_string($value) && $value !== '') {
+                $safe[$key] = mb_strcut($value, 0, 4096, 'UTF-8');
             }
         }
 
@@ -799,7 +811,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             throw new \RuntimeException("Template not found: {$templatePath}");
         }
 
-        $data['e'] = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $data['e'] = static fn(mixed $value): string => htmlspecialchars(is_scalar($value) ? (string) $value : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $data['dump'] = fn(mixed $value): string => $this->formatValue($value);
 
         return $this->includeTemplate($templatePath, $data);
@@ -918,6 +930,9 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             return $this->shortPathCache[$path];
         }
 
+        if (count($this->shortPathCache) >= 256) {
+            $this->shortPathCache = [];
+        }
         $realPath = realpath($path) ?: $path;
 
         foreach ($this->basePaths as $base) {

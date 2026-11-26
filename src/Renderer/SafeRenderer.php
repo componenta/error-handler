@@ -117,7 +117,7 @@ readonly class SafeRenderer implements HttpErrorRendererInterface
 
         $render = static function (string $templatePath, array $data): ?string {
             $level = ob_get_level();
-            $e = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $e = static fn(mixed $value): string => htmlspecialchars(is_scalar($value) ? (string) $value : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
             extract($data, EXTR_SKIP);
             ob_start();

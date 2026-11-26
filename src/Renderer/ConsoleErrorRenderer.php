@@ -38,16 +38,12 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
 
     private const string RESET = "\033[0m";
     private const string BOLD = "\033[1m";
-    private const string DIM = "\033[2m";
     private const string ITALIC = "\033[3m";
-    private const string UNDERLINE = "\033[4m";
 
     // Foreground colors
-    private const string FG_BLACK = "\033[30m";
     private const string FG_RED = "\033[31m";
     private const string FG_GREEN = "\033[32m";
     private const string FG_YELLOW = "\033[33m";
-    private const string FG_BLUE = "\033[34m";
     private const string FG_MAGENTA = "\033[35m";
     private const string FG_CYAN = "\033[36m";
     private const string FG_WHITE = "\033[37m";
@@ -61,12 +57,6 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     private const string FG_BRIGHT_WHITE = "\033[97m";
 
     // Background colors
-    private const string BG_RED = "\033[41m";
-    private const string BG_GREEN = "\033[42m";
-    private const string BG_YELLOW = "\033[43m";
-    private const string BG_BLUE = "\033[44m";
-    private const string BG_MAGENTA = "\033[45m";
-    private const string BG_GRAY = "\033[100m";
     private const string BG_BRIGHT_RED = "\033[101m";
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -79,24 +69,17 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     private const string BOX_BR = '╯';
     private const string BOX_H = '─';
     private const string BOX_V = '│';
-    private const string BOX_CROSS = '┼';
-    private const string BOX_T_DOWN = '┬';
-    private const string BOX_T_UP = '┴';
-    private const string BOX_T_RIGHT = '├';
-    private const string BOX_T_LEFT = '┤';
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Icons (Unicode)
     // ═══════════════════════════════════════════════════════════════════════════
 
     private const string ICON_ERROR = '✖';
-    private const string ICON_WARNING = '⚠';
     private const string ICON_INFO = 'ℹ';
     private const string ICON_ARROW = '->';
     private const string ICON_DOT = '●';
     private const string ICON_CHAIN = '⤷';
     private const string ICON_FILE = '📄';
-    private const string ICON_FOLDER = '📁';
     private const string ICON_CODE = '❯';
 
     private const int DEFAULT_WIDTH = 120;
@@ -358,6 +341,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         return implode("\n", $output);
     }
 
+    /** @param array{function?: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object} $frame */
     private function renderFrame(int $index, array $frame, int $width): string
     {
         $lines = [];
@@ -474,67 +458,49 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         );
         $output[] = '';
 
-        // Input arguments - PHP 8.4 property hooks compatible
         $input = $context->input;
-        if ($input !== null) {
-            $output[] = $this->color('  Input:', self::FG_GREEN, self::BOLD);
+        $output[] = $this->color('  Input:', self::FG_GREEN, self::BOLD);
 
-            // Command
-            if (method_exists($input, 'getFirstArgument')) {
-                $firstArg = $input->getFirstArgument();
-                if ($firstArg) {
-                    $output[] = sprintf(
-                        '    %s Command: %s',
-                        self::ICON_DOT,
-                        $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($firstArg), self::FG_CYAN),
-                    );
-                }
-            }
+        $firstArg = $input->getFirstArgument();
+        if ($firstArg !== null && $firstArg !== '') {
+            $output[] = sprintf(
+                '    %s Command: %s',
+                self::ICON_DOT,
+                $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($firstArg), self::FG_CYAN),
+            );
+        }
 
-            // Arguments
-            if (method_exists($input, 'getArguments')) {
-                $args = \Componenta\Error\Diagnostic\DiagnosticData::sanitize($input->getArguments());
-                if (!empty($args)) {
-                    $output[] = sprintf(
-                        '    %s Arguments: %s',
-                        self::ICON_DOT,
-                        $this->color(
-                            json_encode($args, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '(unavailable)',
-                            self::FG_WHITE,
-                        ),
-                    );
-                }
-            }
+        $args = \Componenta\Error\Diagnostic\DiagnosticData::sanitize($input->getArguments());
+        if (is_array($args) && $args !== []) {
+            $output[] = sprintf(
+                '    %s Arguments: %s',
+                self::ICON_DOT,
+                $this->color(json_encode($args, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '(unavailable)', self::FG_WHITE),
+            );
+        }
 
-            // Options
-            if (method_exists($input, 'getOptions')) {
-                $options = \Componenta\Error\Diagnostic\DiagnosticData::sanitize($input->getOptions());
-                if (!empty($options)) {
-                    $filteredOptions = array_filter($options, fn($v) => $v !== false && $v !== null && $v !== []);
-                    if (!empty($filteredOptions)) {
-                        $output[] = sprintf(
-                            '    %s Options: %s',
-                            self::ICON_DOT,
-                            $this->color(
-                                json_encode($filteredOptions, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '(unavailable)',
-                                self::FG_WHITE,
-                            ),
-                        );
-                    }
-                }
+        $options = \Componenta\Error\Diagnostic\DiagnosticData::sanitize($input->getOptions());
+        if (is_array($options)) {
+            $filteredOptions = array_filter($options, static fn (mixed $v): bool => $v !== false && $v !== null && $v !== []);
+            if ($filteredOptions !== []) {
+                $output[] = sprintf(
+                    '    %s Options: %s',
+                    self::ICON_DOT,
+                    $this->color(json_encode($filteredOptions, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '(unavailable)', self::FG_WHITE),
+                );
             }
         }
 
         // Custom attributes
         $attributes = \Componenta\Error\Diagnostic\DiagnosticData::sanitize($context->getAttributes());
-        if (!empty($attributes)) {
+        if (is_array($attributes) && $attributes !== []) {
             $output[] = '';
             $output[] = $this->color('  Attributes:', self::FG_GREEN, self::BOLD);
             foreach ($attributes as $key => $value) {
                 $output[] = sprintf(
                     '    %s %s: %s',
                     self::ICON_DOT,
-                    $this->color((string) $key, self::FG_CYAN),
+                    $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal((string) $key), self::FG_CYAN),
                     $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($this->formatValue($value)), self::FG_WHITE),
                 );
             }
@@ -549,6 +515,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     // Helper methods
     // ═══════════════════════════════════════════════════════════════════════════
 
+    /** @param list<string> $lines */
     private function box(array $lines, int $width, string $borderColor = self::FG_GRAY): string
     {
         $innerWidth = $width - 4;
