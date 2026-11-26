@@ -108,11 +108,11 @@ readonly class SafeRenderer implements ErrorRendererInterface
      */
     private function renderTemplate(string $templatePath, array $data): ?string
     {
-        if (!is_file($templatePath)) {
-            return null;
-        }
-
         try {
+            if (!@is_file($templatePath)) {
+                return null;
+            }
+
             return \Componenta\Error\Internal\TemplateOutput::render($templatePath, $data);
         } catch (Throwable $failure) {
             \Componenta\Error\Internal\FailureLog::write('safe error template', $failure);

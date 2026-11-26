@@ -56,6 +56,25 @@ final class SafeRendererTest extends TestCase
         }
     }
 
+    public function testTemplateMetadataFailureUsesIndependentSafeFallback(): void
+    {
+        $scheme = 'errorhandlerstat' . bin2hex(random_bytes(8));
+        self::assertTrue(stream_wrapper_register($scheme, FailingTemplateStatWrapper::class));
+        try {
+            $renderer = new SafeRenderer(defaultMessage: 'Safe <message>', templatePath: $scheme . '://template');
+            $result = $renderer->render(
+                new ErrorOccurrence(new RuntimeException('sensitive-marker'), 'ERR-stat-failure'),
+                new HttpContext(new ServerRequest('GET', '/')),
+            );
+            self::assertSame('text/html; charset=utf-8', $result->contentType);
+            self::assertStringContainsString('Safe &lt;message&gt;', $result->content);
+            self::assertStringContainsString('ERR-stat-failure', $result->content);
+            self::assertStringNotContainsString('sensitive-marker', $result->content);
+        } finally {
+            stream_wrapper_unregister($scheme);
+        }
+    }
+
     public function testRenderReturnsSafeJsonForJsonRequests(): void
     {
         $renderer = new SafeRenderer(defaultMessage: 'Internal Server Error');
@@ -77,5 +96,16 @@ final class SafeRendererTest extends TestCase
             $decoded,
         );
         self::assertStringNotContainsString('database password leaked', $output);
+    }
+}
+
+/** Test-only stream wrapper that fails during template metadata lookup. */
+final class FailingTemplateStatWrapper
+{
+    public mixed $context;
+
+    public function url_stat(string $path, int $flags): array|false
+    {
+        throw new RuntimeException('Template metadata unavailable');
     }
 }
