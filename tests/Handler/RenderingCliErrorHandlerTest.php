@@ -57,4 +57,31 @@ final class RenderingCliErrorHandlerTest extends TestCase
 
         self::assertSame('rendered error', $output);
     }
+
+    public function testUnsupportedRendererDoesNotInterceptAnotherCliHandler(): void
+    {
+        $renderer = $this->createMock(\Componenta\Error\Renderer\ErrorRendererInterface::class);
+        $renderer->method('supports')->willReturn(false);
+        $renderer->expects(self::never())->method('render');
+        $delegate = new RenderingCliErrorHandler($renderer);
+        $handler = new \Componenta\Error\Handler\CliErrorHandler(new RenderingCliErrorHandler(new ErrorRendererStub('fallback')));
+        $handler->addHandler($delegate, priority: 100);
+        $output = new BufferedOutput();
+        $context = new CliContext(new ArrayInput([]), $output);
+        $error = new ErrorOccurrence(new RuntimeException(), 'ERR-test');
+
+        self::assertFalse($delegate->supports($error, $context));
+        $handler->handle($error, $context);
+        self::assertSame('fallback' . PHP_EOL, $output->fetch());
+    }
+
+    public function testDirectRenderRejectsUnsupportedRendererWithoutInvokingIt(): void
+    {
+        $renderer = $this->createMock(\Componenta\Error\Renderer\ErrorRendererInterface::class);
+        $renderer->method('supports')->willReturn(false);
+        $renderer->expects(self::never())->method('render');
+        $handler = new RenderingCliErrorHandler($renderer);
+        $this->expectException(\InvalidArgumentException::class);
+        $handler->render(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv());
+    }
 }

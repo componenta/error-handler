@@ -27,6 +27,7 @@ final class ErrorHandlingFailureTest extends TestCase
     {
         $original = new RuntimeException('original sensitive message');
         $renderer = $this->createMock(ErrorRendererInterface::class);
+        $renderer->method('supports')->willReturn(true);
         $renderer->expects(self::once())->method('render')->willThrowException(new RuntimeException('broken renderer'));
         $id = $this->createStub(ErrorIdGeneratorInterface::class);
         $id->method('generate')->willThrowException(new RuntimeException('broken generator'));

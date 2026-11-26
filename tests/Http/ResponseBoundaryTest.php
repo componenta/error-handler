@@ -100,6 +100,7 @@ final class ResponseBoundaryTest extends TestCase
             return strlen($part);
         });
         $renderer = $this->createStub(\Componenta\Error\Renderer\ErrorRendererInterface::class);
+        $renderer->method('supports')->willReturn(true);
         $renderer->method('render')->willReturn(new \Componenta\Error\Renderer\RenderedError($body, 'text/plain'));
         $factory = $this->createStub(ResponseFactoryInterface::class);
         $factory->method('createResponse')->willReturn((new Psr17Factory())->createResponse(500)->withBody($stream));
@@ -108,5 +109,67 @@ final class ResponseBoundaryTest extends TestCase
             new HttpContext(new ServerRequest('GET', '/')),
         );
         self::assertSame($body, $actual);
+    }
+
+    public function testRendererDecliningResolvedHttpStatusFallsBackWithoutResolvingStatusTwice(): void
+    {
+        $error = new ErrorOccurrence(new RuntimeException('private'), 'ERR-declined');
+        $context = new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json']));
+        $resolver = $this->createMock(HttpStatusResolverInterface::class);
+        $resolver->expects(self::once())->method('resolve')->with($error->exception, $context)->willReturn(404);
+        $renderer = $this->createMock(\Componenta\Error\Renderer\ErrorRendererInterface::class);
+        $renderer->expects(self::once())->method('supports')->willReturnCallback(
+            static function (ErrorOccurrence $occurrence, \Componenta\Error\ErrorContextInterface $resolved) use ($error): bool {
+                self::assertSame($error, $occurrence);
+                self::assertSame(404, $resolved->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::HTTP_STATUS_CODE));
+                return false;
+            },
+        );
+        $renderer->expects(self::never())->method('render');
+        $generator = new HttpErrorResponseGenerator(new Psr17Factory(), $renderer, $resolver);
+        self::assertTrue($generator->supports($error, $context));
+        $response = $generator->generate($error, $context);
+        self::assertSame(404, $response->getStatusCode());
+        self::assertSame('ERR-declined', $response->getHeaderLine('X-Error-ID'));
+        self::assertSame(404, json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR)['error']['status']);
+        self::assertStringNotContainsString('private', (string) $response->getBody());
+    }
+
+    public function testVaryWildcardAndExistingAcceptArePreserved(): void
+    {
+        $generator = new HttpErrorResponseGenerator(new Psr17Factory());
+        $context = new HttpContext(new ServerRequest('GET', '/'));
+        foreach (['*' => '*', 'Origin, aCcEpT' => 'Origin, aCcEpT', 'Origin' => 'Origin, Accept'] as $value => $expected) {
+            $exception = (new \Componenta\Http\Exception\NotFoundException())->withHeader('Vary', $value);
+            $response = $generator->generate(new ErrorOccurrence($exception, 'ERR-vary'), $context);
+            self::assertSame($expected, $response->getHeaderLine('Vary'));
+        }
+    }
+
+    public function testRepresentationDigestAndInapplicableContentRangeAreNotCopied(): void
+    {
+        $exception = (new \Componenta\Http\Exception\MethodNotAllowedException(['GET']))
+            ->withHeader('Content-Digest', 'sha-256=:YWJj:')
+            ->withHeader('Repr-Digest', 'sha-256=:YWJj:')
+            ->withHeader('Digest', 'SHA-256=YWJj')
+            ->withHeader('Content-MD5', 'YWJj')
+            ->withHeader('Content-Range', 'bytes 0-1/3')
+            ->withHeader('TE', 'trailers')
+            ->withHeader('Proxy-Connection', 'keep-alive');
+        $generator = new HttpErrorResponseGenerator(new Psr17Factory());
+        $context = new HttpContext(new ServerRequest('POST', '/'));
+        $response = $generator->generate(new ErrorOccurrence($exception, 'ERR-fields'), $context);
+        self::assertSame(405, $response->getStatusCode());
+        self::assertSame('GET', $response->getHeaderLine('Allow'));
+        foreach (['Content-Digest', 'Repr-Digest', 'Digest', 'Content-MD5', 'Content-Range', 'TE', 'Proxy-Connection'] as $field) {
+            self::assertFalse($response->hasHeader($field));
+        }
+
+        $range = $generator->generate(
+            new ErrorOccurrence(new \Componenta\Http\Exception\RangeNotSatisfiableException(1024), 'ERR-range'),
+            $context,
+        );
+        self::assertSame(416, $range->getStatusCode());
+        self::assertSame('bytes */1024', $range->getHeaderLine('Content-Range'));
     }
 }

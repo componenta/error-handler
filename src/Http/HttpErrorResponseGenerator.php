@@ -35,7 +35,12 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
             throw new \UnexpectedValueException('An HTTP error status must be between 400 and 599.');
         }
         $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $statusCode);
-        $rendered = $this->renderer->render($error, $context);
+        // Resolve the status once before testing a renderer that may depend
+        // on it. A declined representation does not make this generator
+        // incapable of producing a safe HTTP error response.
+        $renderer = $this->renderer->supports($error, $context)
+            ? $this->renderer : new SafeRenderer();
+        $rendered = $renderer->render($error, $context);
 
         $response = $this->responseFactory->createResponse($statusCode);
 
@@ -47,9 +52,14 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
                     continue;
                 }
                 // Representation and transport framing are owned by the generator.
-                if (!in_array(strtolower($name), [
+                $field = strtolower($name);
+                if ($field === 'content-range' && $statusCode !== 416) {
+                    continue;
+                }
+                if (!in_array($field, [
                     'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
-                    'connection', 'keep-alive', 'trailer', 'upgrade', 'cache-control',
+                    'connection', 'proxy-connection', 'keep-alive', 'te', 'trailer', 'upgrade', 'cache-control',
+                    'content-digest', 'repr-digest', 'digest', 'content-md5',
                     'x-content-type-options',
                 ], true)) {
                     $response = $response->withHeader($name, $value);
@@ -62,8 +72,16 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
             ->withHeader('X-Error-ID', $error->id)
             ->withHeader('Cache-Control', 'no-store')
             ->withHeader('Referrer-Policy', 'no-referrer')
-            ->withHeader('X-Content-Type-Options', 'nosniff')
-            ->withAddedHeader('Vary', 'Accept');
+            ->withHeader('X-Content-Type-Options', 'nosniff');
+
+        // Vary is either "*" or a list of field names; never append a field
+        // to the wildcard. Avoid duplicating an existing Accept token.
+        $vary = array_map(static fn (string $name): string => strtolower(trim($name)), explode(',', $response->getHeaderLine('Vary')));
+        if (in_array('*', $vary, true)) {
+            $response = $response->withHeader('Vary', '*');
+        } elseif (!in_array('accept', $vary, true)) {
+            $response = $response->withAddedHeader('Vary', 'Accept');
+        }
 
         if (strtoupper($context->request->getMethod()) !== 'HEAD') {
             \Componenta\Error\Internal\StreamWriter::write($response->getBody(), $rendered->content);

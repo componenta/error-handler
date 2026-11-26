@@ -54,11 +54,15 @@ readonly class RenderingCliErrorHandler implements CliErrorHandlerInterface
      */
     public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
+        if (!$this->renderer->supports($error, $context)) {
+            throw new \InvalidArgumentException('The configured renderer does not support this occurrence and context.');
+        }
+
         return $this->renderer->render($error, $context);
     }
 
     public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
-        return $context instanceof CliErrorContextInterface;
+        return $context instanceof CliErrorContextInterface && $this->renderer->supports($error, $context);
     }
 }
