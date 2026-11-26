@@ -37,7 +37,7 @@ final class ErrorContentNegotiator
                 default => -1,
             };
 
-            if ($rank < 0 || $rank < $specificity) {
+            if ($rank < 0) {
                 continue;
             }
 
@@ -62,7 +62,7 @@ final class ErrorContentNegotiator
                 ++$rank;
             }
 
-            if ($rank < 0) {
+            if ($rank < 0 || $rank < $specificity) {
                 continue;
             }
 

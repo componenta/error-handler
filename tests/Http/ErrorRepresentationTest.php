@@ -47,6 +47,8 @@ final class ErrorRepresentationTest extends TestCase
         yield ['application/json;q=0, application/json;charset="UTF-8";q=0.9, text/html;q=0.5', 'application/json'];
         yield ['text/html;profile="a,b;c", application/json', 'application/json'];
         yield ['application/json;profile="unterminated', 'text/html'];
+        yield ['application/json;charset=utf-8;q=0, application/json;charset=utf-8;q=0.9, text/html;q=0.5', 'application/json'];
+        yield ['application/json;charset=utf-8;q=0.9, application/json;charset=utf-8;q=0, text/html;q=0.5', 'application/json'];
     }
 
     public function testDeclaredRepresentationWinsOverAcceptAndHeadHasNoBody(): void
