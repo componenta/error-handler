@@ -19,6 +19,9 @@ use Componenta\Error\Reporter\ErrorReporter;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
+use Componenta\Error\Http\EmergencyHttpResponseGenerator;
+use Componenta\Error\Internal\FailureLog;
+use Componenta\Error\Reporter\ListenerExceptionPolicy;
 
 class HttpErrorHandler implements HttpErrorHandlerInterface
 {
@@ -49,6 +52,7 @@ class HttpErrorHandler implements HttpErrorHandlerInterface
             fallbackGenerator: $generator,
             reporter: $reporter ?? new ErrorReporter(),
             errorIdGenerator: $errorIdGenerator ?? new RandomErrorIdGenerator(),
+            emergencyGenerator: new EmergencyHttpResponseGenerator($responseFactory),
         );
     }
 
@@ -56,6 +60,8 @@ class HttpErrorHandler implements HttpErrorHandlerInterface
         protected HttpErrorResponseGeneratorInterface $fallbackGenerator,
         protected ErrorReporterInterface $reporter = new ErrorReporter(),
         protected ErrorIdGeneratorInterface $errorIdGenerator = new RandomErrorIdGenerator(),
+        private readonly ?HttpErrorResponseGeneratorInterface $emergencyGenerator = null,
+        private readonly ListenerExceptionPolicy $reporterFailurePolicy = ListenerExceptionPolicy::Swallow,
     ) {
     }
 
@@ -93,11 +99,47 @@ class HttpErrorHandler implements HttpErrorHandlerInterface
 
     public function handle(Throwable $exception, HttpErrorContextInterface $context): ResponseInterface
     {
-        $errorId = $this->errorIdGenerator->generate($exception, $context);
-        $context = $context->withAttribute(ErrorContextAttribute::ERROR_ID, $errorId);
-        $response = $this->getGenerator($exception, $context)->generate($exception, $context);
+        $errorId = null;
+        try {
+            $id = $this->errorIdGenerator->generate($exception, $context);
+            $context = $context->withAttribute(ErrorContextAttribute::ERROR_ID, $id);
+            $errorId = $id;
+        } catch (Throwable $failure) {
+            FailureLog::write('error ID', $failure, $exception);
+        }
 
-        $this->reporter->report($exception, $context, $response, $errorId);
+        $selected = null;
+        try {
+            $selected = $this->getGenerator($exception, $context);
+            $response = $selected->generate($exception, $context);
+        } catch (Throwable $failure) {
+            FailureLog::write('HTTP response generation', $failure, $exception);
+            $emergency = $this->emergencyGenerator
+                ?? ($selected !== $this->fallbackGenerator ? $this->fallbackGenerator : null);
+            try {
+                if ($emergency === null || $emergency === $selected) {
+                    throw $exception;
+                }
+                $response = $emergency->generate($exception, $context);
+            } catch (Throwable $secondary) {
+                FailureLog::write('emergency response', $secondary, $exception);
+                try {
+                    $this->reporter->report($exception, $context, errorId: $errorId);
+                } catch (Throwable $reportingFailure) {
+                    FailureLog::write('reporting', $reportingFailure, $exception);
+                }
+                throw $exception;
+            }
+        }
+
+        try {
+            $this->reporter->report($exception, $context, $response, $errorId);
+        } catch (Throwable $failure) {
+            if ($this->reporterFailurePolicy === ListenerExceptionPolicy::Throw) {
+                throw $failure;
+            }
+            FailureLog::write('reporting', $failure, $exception);
+        }
 
         return $response;
     }

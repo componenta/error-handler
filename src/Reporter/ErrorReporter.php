@@ -11,6 +11,7 @@ use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\Event\ErrorListenerProvider;
 use Throwable;
+use Componenta\Error\Internal\FailureLog;
 
 final class ErrorReporter implements ErrorReporterInterface
 {
@@ -62,25 +63,35 @@ final class ErrorReporter implements ErrorReporterInterface
             errorId: $errorId,
         );
 
-        foreach ($this->listeners->getListeners() as $listener) {
-            try {
-                if (!$listener->supports($exception, $context)) {
-                    continue;
-                }
+        try {
+            foreach ($this->listeners->getListeners() as $listener) {
+                try {
+                    if (!$listener->supports($exception, $context)) {
+                        continue;
+                    }
 
-                $listener->handleEvent($event);
-            } catch (Throwable $listenerException) {
-                $this->handleListenerException($listenerException);
+                    $listener->handleEvent($event);
+                } catch (Throwable $listenerException) {
+                    $this->handleListenerException($listenerException);
+                }
             }
+        } catch (Throwable $providerFailure) {
+            $this->handleListenerException($providerFailure);
         }
     }
 
     private function shouldNotReport(Throwable $exception, ErrorContextInterface $context): bool
     {
-        return array_any(
-            $this->nonReportable,
-            static fn(callable $filter): bool => $filter($exception, $context),
-        );
+        foreach ($this->nonReportable as $filter) {
+            try {
+                if ($filter($exception, $context)) {
+                    return true;
+                }
+            } catch (Throwable $failure) {
+                $this->handleListenerException($failure);
+            }
+        }
+        return false;
     }
 
     private function handleListenerException(Throwable $exception): void
@@ -89,12 +100,6 @@ final class ErrorReporter implements ErrorReporterInterface
             throw $exception;
         }
 
-        error_log(sprintf(
-            '[error-reporter] listener failure: %s: %s in %s:%d',
-            $exception::class,
-            $exception->getMessage(),
-            $exception->getFile(),
-            $exception->getLine(),
-        ));
+        FailureLog::write('listener or filter', $exception);
     }
 }

@@ -9,6 +9,8 @@ use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Renderer\PlainTextRenderer;
 use Throwable;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * CLI error handler that renders exceptions to console output.
@@ -35,7 +37,11 @@ readonly class RenderingCliErrorHandler implements CliErrorHandlerInterface
         Throwable $exception,
         CliErrorContextInterface $context,
     ): void {
-        $context->output->writeln($this->render($exception, $context));
+        $output = $context->output;
+        if ($output instanceof ConsoleOutputInterface) {
+            $output = $output->getErrorOutput();
+        }
+        $output->writeln($this->render($exception, $context), OutputInterface::OUTPUT_RAW);
     }
 
     /**

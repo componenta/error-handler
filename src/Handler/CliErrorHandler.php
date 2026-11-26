@@ -16,6 +16,10 @@ use Componenta\Error\ErrorId\RandomErrorIdGenerator;
 use Componenta\Error\Renderer\PlainTextRenderer;
 use Componenta\Error\Reporter\ErrorReporter;
 use Throwable;
+use Componenta\Error\Internal\FailureLog;
+use Componenta\Error\Reporter\ListenerExceptionPolicy;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class CliErrorHandler implements CliErrorHandlerInterface
 {
@@ -46,6 +50,7 @@ class CliErrorHandler implements CliErrorHandlerInterface
         protected CliErrorHandlerInterface $fallbackHandler,
         protected ErrorReporterInterface $reporter = new ErrorReporter(),
         protected ErrorIdGeneratorInterface $errorIdGenerator = new RandomErrorIdGenerator(),
+        private readonly ListenerExceptionPolicy $reporterFailurePolicy = ListenerExceptionPolicy::Swallow,
     ) {
     }
 
@@ -83,11 +88,44 @@ class CliErrorHandler implements CliErrorHandlerInterface
 
     public function handle(Throwable $exception, CliErrorContextInterface $context): void
     {
-        $errorId = $this->errorIdGenerator->generate($exception, $context);
-        $context = $context->withAttribute(ErrorContextAttribute::ERROR_ID, $errorId);
+        $errorId = null;
+        try {
+            $id = $this->errorIdGenerator->generate($exception, $context);
+            $context = $context->withAttribute(ErrorContextAttribute::ERROR_ID, $id);
+            $errorId = $id;
+        } catch (Throwable $failure) {
+            FailureLog::write('error ID', $failure, $exception);
+        }
 
-        $this->getHandler($exception, $context)->handle($exception, $context);
-        $this->reporter->report($exception, $context, errorId: $errorId);
+        $outputFailed = false;
+        try {
+            $this->getHandler($exception, $context)->handle($exception, $context);
+        } catch (Throwable $failure) {
+            FailureLog::write('CLI rendering', $failure, $exception);
+            try {
+                $output = $context->output;
+                if ($output instanceof ConsoleOutputInterface) {
+                    $output = $output->getErrorOutput();
+                }
+                $output->writeln('An unexpected error occurred', OutputInterface::OUTPUT_RAW);
+            } catch (Throwable $secondary) {
+                FailureLog::write('emergency CLI output', $secondary, $exception);
+                $outputFailed = true;
+            }
+        }
+
+        try {
+            $this->reporter->report($exception, $context, errorId: $errorId);
+        } catch (Throwable $failure) {
+            if (!$outputFailed && $this->reporterFailurePolicy === ListenerExceptionPolicy::Throw) {
+                throw $failure;
+            }
+            FailureLog::write('reporting', $failure, $exception);
+        }
+
+        if ($outputFailed) {
+            throw $exception;
+        }
     }
 
     protected function getHandler(Throwable $exception, ErrorContextInterface $context): CliErrorHandlerInterface

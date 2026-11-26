@@ -10,6 +10,7 @@ use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\ErrorId\RandomErrorIdGenerator;
 use Componenta\Error\Handler\HttpErrorHandler;
+use Componenta\Error\Http\EmergencyHttpResponseGenerator;
 use Componenta\Error\Reporter\ErrorReporter;
 use LogicException;
 use Psr\Container\ContainerInterface;
@@ -19,10 +20,6 @@ final readonly class HttpErrorHandlerFactory
 {
     public function __invoke(ContainerInterface $container): HttpErrorHandler
     {
-        $renderer = $container->has(ConfigKey::HTTP_RENDERER)
-            ? $container->get(ConfigKey::HTTP_RENDERER)
-            : null;
-
         $reporter = $container->has(ConfigKey::ERROR_REPORTER)
             ? $container->get(ConfigKey::ERROR_REPORTER)
             : ($container->has(ErrorReporterInterface::class)
@@ -40,8 +37,16 @@ final readonly class HttpErrorHandlerFactory
                 $container->get(ConfigKey::HTTP_FALLBACK_GENERATOR),
                 $reporter ?? new ErrorReporter(),
                 $errorIdGenerator ?? new RandomErrorIdGenerator(),
+                emergencyGenerator: $container->has(ResponseFactoryInterface::class)
+                    ? new EmergencyHttpResponseGenerator($container->get(ResponseFactoryInterface::class))
+                    : null,
             )
-            : $this->createDefaultHandler($container, $renderer, $reporter, $errorIdGenerator);
+            : $this->createDefaultHandler(
+                $container,
+                $container->has(ConfigKey::HTTP_RENDERER) ? $container->get(ConfigKey::HTTP_RENDERER) : null,
+                $reporter,
+                $errorIdGenerator,
+            );
 
         $config = $container->get('config');
         $generators = $config[ConfigKey::HTTP_GENERATORS] ?? [];
