@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: refactor/error-handler-v2
+      app_ref:
+        description: Ref of the compatible application integration package
+        required: false
+        type: string
+        default: refactor/error-handler-v2
 
 permissions:
   contents: read
@@ -109,3 +114,30 @@ jobs:
           composer update --no-interaction --prefer-dist
           composer audit --locked --no-dev --no-interaction
           composer test
+
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: core
+      - uses: actions/checkout@v7
+        with:
+          repository: componenta/error-handler-app
+          ref: ${{ inputs.app_ref || 'refactor/error-handler-v2' }}
+          path: app
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring
+          coverage: none
+          tools: composer:v2
+      - working-directory: app
+        run: |
+          composer config repositories.error-handler '{"type":"path","url":"../core","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
+          composer validate --strict
+          composer require --dev --no-interaction --no-update 'componenta/di:^6.0@dev'
+          composer update --no-interaction --prefer-dist
+          composer audit --locked --no-dev --no-interaction
+          composer test
+          composer test:integration

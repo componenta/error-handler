@@ -211,7 +211,7 @@ final class ExpectedException extends \RuntimeException
 
 ## Проверки
 
-`composer test` — unit-тесты Pest, `composer phpstan` — статический анализ, `composer benchmark` — PHPBench. `composer test:integration` проверяет самостоятельную сборку компонентов; интеграция с Config 4 и DI 6 проверяется в error-handler-app. CI также проверяет пять адаптеров рендеринга с текущей версией ядра.
+`composer test` — unit-тесты Pest, `composer phpstan` — статический анализ, `composer benchmark` — PHPBench. `composer test:integration` проверяет самостоятельную сборку компонентов. CI также проверяет пять адаптеров рендеринга и error-handler-app (включая интеграцию с Config 4 и DI 6) с той же версией ядра.
 
 Стандартный обработчик командной строки использует `SafeCliRenderer`: общее сообщение и идентификатор ошибки. Для диагностики явно выбирайте `PlainTextRenderer` или `ConsoleErrorRenderer`; они выводят исходные сообщения исключений и не предназначены для недоверенных получателей.
 

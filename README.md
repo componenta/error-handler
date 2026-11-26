@@ -209,7 +209,7 @@ Requires PHP 8.4 or later. Supply listener registrations to `ArrayErrorListenerP
 
 ## Verification
 
-`composer test` runs unit tests with Pest. `composer phpstan` runs static analysis. `composer benchmark` runs PHPBench. Run `composer test:integration` to verify standalone composition; integration with Config 4 and DI 6 is tested in error-handler-app. The CI matrix also tests the five renderer adapters against the same core checkout.
+`composer test` runs unit tests with Pest. `composer phpstan` runs static analysis. `composer benchmark` runs PHPBench. Run `composer test:integration` to verify standalone composition. The CI matrix also tests the five renderer adapters and error-handler-app (including Config 4 and DI 6 integration) against the same core checkout.
 
 The default CLI handler uses `SafeCliRenderer` (generic message and correlation ID). Choose `PlainTextRenderer` or `ConsoleErrorRenderer` explicitly for diagnostic output; their exception messages are not suitable for untrusted recipients.
 
