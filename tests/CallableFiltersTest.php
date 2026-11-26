@@ -41,6 +41,19 @@ function callableErrorPredicate(ErrorOccurrence $error, ErrorContextInterface $c
     return CallableErrorFilter::accepts($error, $context);
 }
 
+final class AmbiguousFilterException extends RuntimeException
+{
+    public static function RuntimeException(ErrorOccurrence $error, ErrorContextInterface $context): bool
+    {
+        return false;
+    }
+}
+
+function AmbiguousFilterException(ErrorOccurrence $error, ErrorContextInterface $context): bool
+{
+    return true;
+}
+
 final class CallableFiltersTest extends TestCase
 {
     #[DataProvider('filterCases')]
@@ -97,6 +110,37 @@ final class CallableFiltersTest extends TestCase
             'invokable' => new CallableErrorFilter(),
             default => throw new \InvalidArgumentException('Unknown filter form: ' . $form),
         };
+    }
+
+    public function testThrowableClassRuleTakesPrecedenceOverSameNamedFunction(): void
+    {
+        $context = CliContext::fromArgv();
+        $matching = new ErrorOccurrence(new AmbiguousFilterException(), 'ERR-matching');
+        $other = new ErrorOccurrence(new \LogicException(), 'ERR-other');
+        self::assertTrue(is_callable(AmbiguousFilterException::class));
+        $policy = new NonReportableErrors([AmbiguousFilterException::class]);
+        $listener = ErrorListener::createFrom(static function (): void {}, AmbiguousFilterException::class);
+
+        self::assertFalse($policy->shouldReport($matching, $context));
+        self::assertTrue($policy->shouldReport($other, $context));
+        self::assertTrue($listener->supports($matching, $context));
+        self::assertFalse($listener->supports($other, $context));
+
+        // Explicit callable syntax still selects the function.
+        $function = new NonReportableErrors([AmbiguousFilterException(...)]);
+        self::assertFalse($function->shouldReport($other, $context));
+    }
+
+    public function testThrowableListTakesPrecedenceOverAmbiguousStaticCallable(): void
+    {
+        $rule = [AmbiguousFilterException::class, RuntimeException::class];
+        self::assertTrue(is_callable($rule));
+        $context = CliContext::fromArgv();
+        $error = new ErrorOccurrence(new RuntimeException(), 'ERR-runtime');
+        $policy = new NonReportableErrors([$rule]);
+        $listener = ErrorListener::createFrom(static function (): void {}, $rule);
+        self::assertFalse($policy->shouldReport($error, $context));
+        self::assertTrue($listener->supports($error, $context));
     }
 
     public function testClassRuleSnapshotDetachesReferenceSlots(): void
