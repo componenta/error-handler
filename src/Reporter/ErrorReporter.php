@@ -10,6 +10,8 @@ use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\Event\ErrorListenerProvider;
 use Throwable;
+use Psr\Clock\ClockInterface;
+use Componenta\Error\Clock\UtcClock;
 use Fiber;
 use WeakMap;
 use Componenta\Error\Internal\FailureLog;
@@ -30,6 +32,7 @@ final class ErrorReporter implements ErrorReporterInterface
     public function __construct(
         private readonly ErrorListenerProviderInterface $listeners = new ErrorListenerProvider(),
         private readonly ListenerExceptionPolicy $listenerExceptionPolicy = ListenerExceptionPolicy::Swallow,
+        private readonly ClockInterface $clock = new UtcClock(),
     ) {
     }
 
@@ -44,7 +47,6 @@ final class ErrorReporter implements ErrorReporterInterface
     public function report(
         Throwable $exception,
         ErrorContextInterface $context,
-        mixed $result = null,
         ?string $errorId = null,
     ): void {
         $fiber = Fiber::getCurrent();
@@ -58,7 +60,7 @@ final class ErrorReporter implements ErrorReporterInterface
             $event = new ErrorEvent(
                 exception: $exception,
                 context: $context,
-                result: $result,
+                timestamp: $this->clock->now(),
                 errorId: $errorId,
             );
             $context = $event->context;

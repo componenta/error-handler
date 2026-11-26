@@ -7,7 +7,6 @@ namespace Componenta\Error\Event;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use DateTimeImmutable;
-use DateTimeZone;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Throwable;
 
@@ -22,7 +21,7 @@ final class ErrorEvent implements ErrorEventInterface
     /**
      * @param Throwable $exception The exception that occurred
      * @param ErrorContextInterface $context The error context
-     * @param DateTimeImmutable $timestamp Event timestamp (defaults to now)
+     * @param DateTimeImmutable $timestamp Event timestamp supplied by the reporter's clock
      */
     public readonly ErrorContextInterface $context;
 
@@ -36,9 +35,8 @@ final class ErrorEvent implements ErrorEventInterface
     public function __construct(
         public readonly Throwable $exception,
         ErrorContextInterface $context,
-        public readonly mixed $result = null,
+        public readonly DateTimeImmutable $timestamp,
         ?string $errorId = null,
-        public readonly DateTimeImmutable $timestamp = new DateTimeImmutable('now', new DateTimeZone('UTC')),
     ) {
         $this->context = $errorId !== null && $context->getAttribute(ErrorContextAttribute::ERROR_ID, null) !== $errorId
             ? $context->withAttribute(ErrorContextAttribute::ERROR_ID, $errorId)

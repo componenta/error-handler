@@ -32,11 +32,6 @@ interface ErrorEventInterface
     public DateTimeImmutable $timestamp { get; }
 
     /**
-     * Get optional handling result, such as an HTTP response
-     */
-    public mixed $result { get; }
-
-    /**
      * Get optional error ID shared with user-facing output and logs
      */
     public ?string $errorId { get; }

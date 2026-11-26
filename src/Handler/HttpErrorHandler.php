@@ -114,7 +114,7 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
         }
 
         try {
-            $this->reporter->report($exception, $context, $response, $errorId);
+            $this->reporter->report($exception, $context, $errorId);
         } catch (Throwable $failure) {
             if ($this->reporterFailurePolicy === ListenerExceptionPolicy::Throw) {
                 throw $failure;

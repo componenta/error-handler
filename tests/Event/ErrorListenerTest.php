@@ -26,7 +26,7 @@ final class ErrorListenerTest extends TestCase
             $receivedEvent = $event;
         });
 
-        $event = new ErrorEvent(new RuntimeException(), CliContext::fromArgv());
+        $event = new ErrorEvent(new RuntimeException(), CliContext::fromArgv(), new \DateTimeImmutable('2026-01-01T00:00:00+00:00'));
         $listener->handleEvent($event);
 
         self::assertSame($event, $receivedEvent);

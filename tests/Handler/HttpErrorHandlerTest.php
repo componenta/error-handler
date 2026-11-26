@@ -84,7 +84,7 @@ final class HttpErrorHandlerTest extends TestCase
         self::assertSame(201, $response->getStatusCode());
     }
 
-    public function testHandleReportsExceptionWithResponseAndErrorId(): void
+    public function testHandleReportsExceptionWithResponseStatusAndErrorId(): void
     {
         $factory = new Psr17Factory();
         $reported = [];
@@ -107,7 +107,7 @@ final class HttpErrorHandlerTest extends TestCase
 
         self::assertCount(1, $reported);
         self::assertSame($exception, $reported[0]->exception);
-        self::assertSame($response, $reported[0]->result);
+        self::assertSame($response->getStatusCode(), $reported[0]->context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::HTTP_STATUS_CODE));
         self::assertNotSame('', $reported[0]->errorId);
     }
 

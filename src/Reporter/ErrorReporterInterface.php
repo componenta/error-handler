@@ -19,14 +19,12 @@ interface ErrorReporterInterface
      *
      * @param Throwable $exception Exception to report
      * @param ErrorContextInterface $context Context information
-     * @param mixed $result Optional handling result, such as a response
      * @param string|null $errorId Correlation ID shown to the user, when available
      * @return void
      */
     public function report(
         Throwable $exception,
         ErrorContextInterface $context,
-        mixed $result = null,
         ?string $errorId = null,
     ): void;
 }

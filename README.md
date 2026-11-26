@@ -214,3 +214,5 @@ $result->contentType;  // application/json; charset=utf-8
 ```
 
 Custom renderers must return `new RenderedError($content, $contentType)`. `CompositeErrorRenderer` forwards the selected result unchanged. HTTP generators use its content and type directly, while CLI handlers write only its content. There is no separate HTTP rendering contract or implicit string-only fallback.
+
+`ErrorReporter` timestamps each event using an injected PSR-20 `ClockInterface` (UTC system clock by default). The event stores the supplied timestamp. It contains no transport result; the actual HTTP status, if available, is supplied in `ErrorContextAttribute::HTTP_STATUS_CODE`.

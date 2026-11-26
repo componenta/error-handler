@@ -36,13 +36,12 @@ final class ErrorReporterTest extends TestCase
         $exception = new RuntimeException('test');
         $context = $this->context();
 
-        $reporter->report($exception, $context, result: 'handled', errorId: 'err-1');
+        $reporter->report($exception, $context, errorId: 'err-1');
 
         self::assertCount(1, $receivedEvents);
         self::assertSame($exception, $receivedEvents[0]->exception);
         self::assertSame('err-1', $receivedEvents[0]->context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::ERROR_ID));
         self::assertNull($context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::ERROR_ID, null));
-        self::assertSame('handled', $receivedEvents[0]->result);
         self::assertSame('err-1', $receivedEvents[0]->errorId);
     }
 
