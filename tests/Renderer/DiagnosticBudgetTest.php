@@ -28,6 +28,43 @@ final class DiagnosticBudgetTest extends TestCase
         self::assertLessThan(300_000, strlen(json_encode($result, JSON_THROW_ON_ERROR)));
     }
 
+    public function testPrettyRendererSharesDataBudgetAndResetsItForEachRender(): void
+    {
+        $data = array_fill(0, 100, str_repeat('a', 4096));
+        $request = (new ServerRequest('POST', '/'))->withQueryParams($data)->withParsedBody($data);
+        $template = tempnam(sys_get_temp_dir(), 'error-budget-');
+        self::assertIsString($template);
+        file_put_contents($template, '<?php echo json_encode([$getData, $postData], JSON_THROW_ON_ERROR); ?>');
+        try {
+            $renderer = new PrettyPageRenderer(templatePath: $template, includeSource: false);
+            $error = new ErrorOccurrence(new RuntimeException('test'), 'ERR-budget');
+            $context = new HttpContext($request);
+            $first = $renderer->render($error, $context)->content;
+            self::assertLessThan(300_000, strlen($first));
+            self::assertSame($first, $renderer->render($error, $context)->content);
+        } finally {
+            unlink($template);
+        }
+    }
+
+    public function testPrettyRendererCapsChainAndMessagesEvenWithUnlimitedConfiguration(): void
+    {
+        $previous = null;
+        for ($i = 0; $i < 40; ++$i) {
+            $previous = new RuntimeException(str_repeat('x', 50_000), 0, $previous);
+        }
+        $template = tempnam(sys_get_temp_dir(), 'error-chain-');
+        self::assertIsString($template);
+        file_put_contents($template, '<?php echo json_encode([count($exceptionChain), count($frames), strlen($exception["message"])]); ?>');
+        try {
+            $renderer = new PrettyPageRenderer(templatePath: $template, maxFrames: 1, maxExceptions: null, includeSource: false);
+            $result = $renderer->render(new ErrorOccurrence($previous, 'ERR-chain'), new HttpContext(new ServerRequest('GET', '/')));
+            self::assertSame([32, 1, 16_384], json_decode($result->content, true, flags: JSON_THROW_ON_ERROR));
+        } finally {
+            unlink($template);
+        }
+    }
+
     #[\PHPUnit\Framework\Attributes\DataProvider('eofModes')]
     public function testChunkedDiagnosticReadRestoresPositionAndRedactsSecrets(bool $delayedEof): void
     {

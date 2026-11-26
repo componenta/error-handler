@@ -9,6 +9,8 @@ use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
+use Componenta\Error\Diagnostic\DiagnosticBudget;
+use Componenta\Error\Diagnostic\DiagnosticData;
 
 /**
  * Pretty HTML error renderer with stack trace visualization
@@ -24,6 +26,8 @@ final class PrettyPageRenderer implements ErrorRendererInterface
     private const int DEFAULT_MAX_BODY_LENGTH = 4096;
     private const int DEFAULT_MAX_FRAMES = 100;
     private const int DEFAULT_MAX_EXCEPTIONS = 10;
+    private const int HARD_MAX_FRAMES = 256;
+    private const int HARD_MAX_EXCEPTIONS = 32;
 
     /**
      * Available themes
@@ -90,8 +94,8 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      * @param ?string $templatePath Custom template path (null for default)
      * @param list<array{name: string, url: string, icon: string, class?: string}> $searchProviders Search button configs
      * @param ?array{name: string, url: string} $editor Editor config for "Open in IDE"
-     * @param ?int $maxFrames Maximum stack frames to show (null = unlimited)
-     * @param ?int $maxExceptions Maximum exception chain depth (null = unlimited)
+     * @param ?int $maxFrames Maximum stack frames to show (null = built-in safety ceiling)
+     * @param ?int $maxExceptions Maximum exception chain depth (null = built-in safety ceiling)
      * @param int $maxStringLength Maximum string length before truncation
      * @param int $maxArrayDepth Maximum array/object nesting depth
      * @param int $maxBodyLength Maximum request body length to display
@@ -189,11 +193,13 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         $requestTime = $serverParams['REQUEST_TIME'] ?? null;
         $remoteAddress = $serverParams['REMOTE_ADDR'] ?? null;
 
+        $budget = new DiagnosticBudget();
+
         // Build exception chain info (for header display)
-        $exceptionChain = $this->buildExceptionChain($exception);
+        $exceptionChain = $this->buildExceptionChain($exception, $budget);
 
         // Build unified stack trace including all exceptions
-        $frames = $this->buildUnifiedFrames($exception);
+        $frames = $this->buildUnifiedFrames($exception, $budget);
 
         return [
             // Config
@@ -223,10 +229,10 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             ],
 
             // GET parameters
-            'getData' => \Componenta\Error\Diagnostic\DiagnosticData::sanitize($request->getQueryParams()),
+            'getData' => $budget->sanitize($request->getQueryParams()),
 
             // POST parameters
-            'postData' => \Componenta\Error\Diagnostic\DiagnosticData::sanitize($request->getParsedBody()),
+            'postData' => $budget->sanitize($request->getParsedBody()),
 
             // Cookies
             'cookies' => array_fill_keys(array_keys(array_slice($request->getCookieParams(), 0, 100, true)), \Componenta\Error\Diagnostic\DiagnosticData::REDACTED),
@@ -235,7 +241,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             'files' => $this->formatUploadedFiles($request->getUploadedFiles()),
 
             // Raw body
-            'rawBody' => $this->captureJsonBody ? $this->getRawBody($request) : null,
+            'rawBody' => $this->captureJsonBody ? $this->getRawBody($request, $budget) : null,
 
             // Headers
             'headers' => $this->flattenHeaders($request->getHeaders()),
@@ -279,7 +285,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      *     arguments: array<string, array{type: string, value: string}>
      * }>
      */
-    private function buildExceptionChain(Throwable $exception): array
+    private function buildExceptionChain(Throwable $exception, DiagnosticBudget $budget): array
     {
         $chain = [];
         $current = $exception;
@@ -287,8 +293,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         $visited = new \SplObjectStorage();
 
         while ($current !== null) {
-            // Check limit (null = unlimited)
-            if ($this->maxExceptions !== null && $index >= $this->maxExceptions) {
+            if ($index >= min($this->maxExceptions ?? self::HARD_MAX_EXCEPTIONS, self::HARD_MAX_EXCEPTIONS)) {
                 break;
             }
 
@@ -302,12 +307,12 @@ final class PrettyPageRenderer implements ErrorRendererInterface
                 'index' => $index,
                 'class' => $current::class,
                 'shortClass' => $this->getShortClassName($current::class),
-                'message' => $current->getMessage(),
+                'message' => DiagnosticData::boundedText($current->getMessage()),
                 'code' => $current->getCode(),
                 'file' => $current->getFile(),
                 'line' => $current->getLine(),
                 'shortFile' => $this->getShortPath($current->getFile()),
-                'arguments' => $this->getExceptionArguments($current),
+                'arguments' => $this->getExceptionArguments($current, $budget),
             ];
             $current = $current->getPrevious();
             $index++;
@@ -326,7 +331,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      *
      * @return list<array<string, mixed>>
      */
-    private function buildUnifiedFrames(Throwable $exception): array
+    private function buildUnifiedFrames(Throwable $exception, DiagnosticBudget $budget): array
     {
         // Step 1: Collect all exceptions in chain (outer to inner)
         $exceptions = [];
@@ -334,7 +339,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         $visited = new \SplObjectStorage();
 
         while ($current !== null) {
-            if ($this->maxExceptions !== null && count($exceptions) >= $this->maxExceptions) {
+            if (count($exceptions) >= min($this->maxExceptions ?? self::HARD_MAX_EXCEPTIONS, self::HARD_MAX_EXCEPTIONS)) {
                 break;
             }
             if ($visited->offsetExists($current)) {
@@ -348,16 +353,20 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         // Step 2: Build unified frames
         $frames = [];
         $frameIndex = 0;
+        $frameLimit = min($this->maxFrames ?? self::HARD_MAX_FRAMES, self::HARD_MAX_FRAMES);
 
         // Add all exception markers first (outer to inner)
         foreach ($exceptions as $excIndex => $exc) {
+            if ($frameIndex >= $frameLimit) {
+                break;
+            }
             $frames[] = [
                 'index' => $frameIndex++,
                 'isExceptionMarker' => true,
                 'exceptionIndex' => $excIndex,
                 'exceptionClass' => $exc::class,
                 'exceptionShortClass' => $this->getShortClassName($exc::class),
-                'exceptionMessage' => $exc->getMessage(),
+                'exceptionMessage' => DiagnosticData::boundedText($exc->getMessage()),
                 'exceptionCode' => $exc->getCode(),
                 'class' => null,
                 'shortClass' => null,
@@ -366,7 +375,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
                 'shortFile' => $this->getShortPath($exc->getFile()),
                 'line' => $exc->getLine(),
                 'args' => [],
-                'code' => $this->getCodeSnippet($exc->getFile(), $exc->getLine()),
+                'code' => $this->getCodeSnippet($exc->getFile(), $exc->getLine(), $budget),
             ];
         }
 
@@ -386,21 +395,21 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             // Add frames from inner trace, excluding the common tail
             $uniqueFrameCount = count($innerTrace) - $commonTailLength;
             for ($j = 0; $j < $uniqueFrameCount; $j++) {
-                if ($this->maxFrames !== null && $frameIndex >= $this->maxFrames) {
+                if ($frameIndex >= $frameLimit) {
                     break 2;
                 }
 
-                $frames[] = $this->buildFrameData($innerTrace[$j], $frameIndex++, $excIndex);
+                $frames[] = $this->buildFrameData($innerTrace[$j], $frameIndex++, $excIndex, $budget);
             }
         }
 
         // Add full trace from outer exception
         foreach ($outerTrace as $traceFrame) {
-            if ($this->maxFrames !== null && $frameIndex >= $this->maxFrames) {
+            if ($frameIndex >= $frameLimit) {
                 break;
             }
 
-            $frames[] = $this->buildFrameData($traceFrame, $frameIndex++, 0);
+            $frames[] = $this->buildFrameData($traceFrame, $frameIndex++, 0, $budget);
         }
 
         return $frames;
@@ -454,7 +463,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      * @param array{function?: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object} $traceFrame
      * @return array<string, mixed>
      */
-    private function buildFrameData(array $traceFrame, int $index, int $excIndex): array
+    private function buildFrameData(array $traceFrame, int $index, int $excIndex, DiagnosticBudget $budget): array
     {
         $file = $traceFrame['file'] ?? null;
         $line = $traceFrame['line'] ?? null;
@@ -475,7 +484,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             'shortFile' => $file !== null ? $this->getShortPath($file) : null,
             'line' => $line,
             'args' => $this->formatArgs($traceFrame['args'] ?? []),
-            'code' => $file !== null && $line !== null ? $this->getCodeSnippet($file, $line) : null,
+            'code' => $file !== null && $line !== null ? $this->getCodeSnippet($file, $line, $budget) : null,
         ];
     }
 
@@ -484,7 +493,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      *
      * @return array<string, array{type: string, value: string}>
      */
-    private function getExceptionArguments(Throwable $exception): array
+    private function getExceptionArguments(Throwable $exception, DiagnosticBudget $budget): array
     {
         $arguments = [];
 
@@ -495,7 +504,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             $reflection = new \ReflectionObject($exception);
 
             foreach ($reflection->getProperties() as $property) {
-                if (count($arguments) >= 64) {
+                if (count($arguments) >= 64 || !$budget->hasRemaining()) {
                     break;
                 }
                 $name = $property->getName();
@@ -514,7 +523,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
 
                     $arguments[$name] = [
                         'type' => $this->getValueType($value),
-                        'value' => $this->formatValue(\Componenta\Error\Diagnostic\DiagnosticData::sanitize($value)),
+                        'value' => $this->formatValue($budget->sanitize($value)),
                     ];
                 } catch (\Throwable) {
                     $arguments[$name] = [
@@ -716,8 +725,11 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      *
      * @return array{content: string, truncated: bool, size: int}|null
      */
-    private function getRawBody(ServerRequestInterface $request): ?array
+    private function getRawBody(ServerRequestInterface $request, DiagnosticBudget $budget): ?array
     {
+        if (!$budget->hasRemaining()) {
+            return null;
+        }
         $body = null;
         $position = null;
         try {
@@ -750,7 +762,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
                 return null;
             }
             return [
-                'content' => json_encode(\Componenta\Error\Diagnostic\DiagnosticData::sanitize($data), JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+                'content' => json_encode($budget->sanitize($data), JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
                 'truncated' => false,
                 'size' => strlen($content),
             ];
@@ -772,9 +784,9 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      *
      * @return array{startLine: int, errorLine: int, lines: list<string>}|null
      */
-    private function getCodeSnippet(string $file, int $errorLine): ?array
+    private function getCodeSnippet(string $file, int $errorLine, DiagnosticBudget $budget): ?array
     {
-        return $this->includeSource ? \Componenta\Error\Diagnostic\SourceExcerpt::read($file, $errorLine, self::CONTEXT_LINES) : null;
+        return $this->includeSource ? $budget->source($file, $errorLine, self::CONTEXT_LINES) : null;
     }
 
     /**
