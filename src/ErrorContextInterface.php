@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error;
 
-use Componenta\Config\DefaultValue;
+use Componenta\Error\Context\AttributeDefault;
 use InvalidArgumentException;
 
 /**
@@ -32,7 +32,7 @@ interface ErrorContextInterface
      * @return mixed Attribute value or default
      * @throws InvalidArgumentException If key not found and no default provided
      */
-    public function getAttribute(string|int $key, mixed $default = DefaultValue::None): mixed;
+    public function getAttribute(string|int $key, mixed $default = AttributeDefault::None): mixed;
 
     /**
      * Create new context with single attribute added

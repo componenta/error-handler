@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Fixture;
 
-use Componenta\Config\DefaultValue;
+use Componenta\Error\Context\AttributeDefault;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Symfony\Component\Console\Input\InputInterface;
@@ -30,7 +30,7 @@ final class ContractCliContext implements CliErrorContextInterface
         return $this->context->getAttributes();
     }
 
-    public function getAttribute(string|int $key, mixed $default = DefaultValue::None): mixed
+    public function getAttribute(string|int $key, mixed $default = AttributeDefault::None): mixed
     {
         return $this->context->getAttribute($key, $default);
     }

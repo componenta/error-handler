@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Handler;
 
-use Componenta\Error\ConfigKey;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\ErrorOccurrence;
@@ -22,9 +21,6 @@ use Componenta\Error\Internal\FailureLog;
 
 final class HttpErrorHandler implements HttpErrorHandlerInterface
 {
-    public const string FALLBACK_GENERATOR = ConfigKey::HTTP_FALLBACK_GENERATOR;
-    public const string RENDERER = ConfigKey::HTTP_RENDERER;
-    public const string GENERATORS = ConfigKey::HTTP_GENERATORS;
 
     /**
      * @var list<array{generator: HttpErrorResponseGeneratorInterface, priority: int}>

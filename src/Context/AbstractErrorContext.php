@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Context;
 
-use Componenta\Config\DefaultValue;
 use Componenta\Error\ErrorContextInterface;
 
 /**
@@ -72,13 +71,13 @@ abstract readonly class AbstractErrorContext implements ErrorContextInterface
      * @return mixed Attribute value or default
      * @throws \InvalidArgumentException If attribute not found and no default provided
      */
-    public function getAttribute(string|int $key, mixed $default = DefaultValue::None): mixed
+    public function getAttribute(string|int $key, mixed $default = AttributeDefault::None): mixed
     {
         if (array_key_exists($key, $this->attributes)) {
             return $this->attributes[$key];
         }
 
-        if ($default === DefaultValue::None) {
+        if ($default === AttributeDefault::None) {
             throw new \InvalidArgumentException(
                 sprintf('Attribute "%s" not found in error context', $key)
             );

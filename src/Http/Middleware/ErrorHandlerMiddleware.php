@@ -8,7 +8,6 @@ use Throwable;
 use Componenta\Error\Http\EmergencyHttpResponseGenerator;
 use Componenta\Error\ErrorOccurrenceFactory;
 use Componenta\Error\Internal\FailureLog;
-use Componenta\Error\ConfigKey;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Handler\HttpErrorHandlerInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -25,7 +24,6 @@ use Psr\Http\Server\RequestHandlerInterface;
  */
 final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
 {
-    public const string ERROR_LEVEL = ConfigKey::ERROR_LEVEL;
 
     /**
      * @param HttpErrorHandlerInterface $errorHandler Handler for caught exceptions

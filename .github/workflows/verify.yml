@@ -43,8 +43,7 @@ jobs:
           extensions: mbstring
           coverage: none
           tools: composer:v2
-      - run: composer require --dev --no-interaction --no-update 'componenta/di:^6.0@dev'
-      - run: composer update --no-interaction --prefer-dist
+      - run: composer install --no-interaction --prefer-dist
       - run: composer test:integration
 
   analysis:

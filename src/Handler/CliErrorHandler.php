@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Handler;
 
-use Componenta\Error\ConfigKey;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Componenta\Error\ErrorContextInterface;
@@ -20,8 +19,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 final class CliErrorHandler implements CliErrorHandlerInterface
 {
-    public const string FALLBACK_HANDLER = ConfigKey::CLI_FALLBACK_HANDLER;
-    public const string RENDERER = ConfigKey::CLI_RENDERER;
 
     /**
      * @var list<array{handler: CliErrorHandlerInterface, priority: int}>

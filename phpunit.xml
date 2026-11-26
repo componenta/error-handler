@@ -12,10 +12,10 @@
     <testsuites>
         <testsuite name="Unit">
             <directory>tests</directory>
-            <exclude>tests/ContainerIntegrationTest.php</exclude>
+            <exclude>tests/StandaloneIntegrationTest.php</exclude>
         </testsuite>
         <testsuite name="Integration">
-            <file>tests/ContainerIntegrationTest.php</file>
+            <file>tests/StandaloneIntegrationTest.php</file>
         </testsuite>
     </testsuites>
     <source>

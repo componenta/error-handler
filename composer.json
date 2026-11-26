@@ -4,13 +4,11 @@
     "type": "library",
     "license": "MIT",
     "require": {
-        "componenta/config": "^4.0",
         "componenta/http": "^1.0",
         "ext-mbstring": "*",
         "nyholm/psr7-server": "^1.1",
         "php": "^8.4",
         "psr/clock": "^1.0",
-        "psr/container": "^2.0",
         "psr/http-factory": "^1.1",
         "psr/http-message": "^2.0",
         "psr/http-server-middleware": "^1.0",
@@ -35,11 +33,6 @@
     },
     "minimum-stability": "stable",
     "extra": {
-        "componenta": {
-            "config-providers": [
-                "Componenta\\Error\\ConfigProvider"
-            ]
-        },
         "branch-alias": {
             "dev-main": "2.0.x-dev",
             "dev-refactor/error-handler-v2": "2.0.x-dev"
