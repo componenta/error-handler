@@ -59,6 +59,28 @@ final class NumericAttributesTest extends TestCase
         self::assertSame([7 => 'old', -4 => 'negative', 'name' => 'kept'], $updated->getAttributes());
     }
 
+    #[DataProvider('contextTypes')]
+    public function testAttributeBindingsDetachCallerReferenceSlots(string $type): void
+    {
+        $value = 'original';
+        $attributes = ['key' => &$value, 4 => &$value];
+        $context = $type === 'http'
+            ? new HttpContext(new ServerRequest('GET', '/'), $attributes)
+            : new CliContext(new ArrayInput([]), new BufferedOutput(), $attributes);
+        $next = $context->withAttributes(['extra' => &$value]);
+        $value = 'caller mutation';
+        $returned = $context->getAttributes();
+        $returned['key'] = 'returned mutation';
+
+        self::assertSame('original', $context->getAttribute('key'));
+        self::assertSame('original', $context->getAttribute(4));
+        self::assertSame('original', $next->getAttribute('extra'));
+
+        // Shared object identity is intentional, unlike the array slot alias.
+        $object = new \stdClass();
+        self::assertSame($object, $context->withAttribute('object', $object)->getAttribute('object'));
+    }
+
     /** @return iterable<string, array{string}> */
     public static function contextTypes(): iterable
     {

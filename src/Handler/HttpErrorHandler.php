@@ -98,9 +98,14 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
 
         try {
             $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $response->getStatusCode());
+        } catch (Throwable $failure) {
+            FailureLog::write('HTTP error context metadata', $failure, $exception);
+        }
+
+        try {
             $response = $response->withHeader('X-Error-ID', $error->id);
         } catch (Throwable $failure) {
-            FailureLog::write('HTTP error metadata', $failure, $exception);
+            FailureLog::write('HTTP error correlation header', $failure, $exception);
         }
 
         try {

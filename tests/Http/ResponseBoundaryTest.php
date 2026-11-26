@@ -74,4 +74,32 @@ final class ResponseBoundaryTest extends TestCase
 
         self::assertSame("An unexpected error occurred\nError ID: ERR-test", $written);
     }
+
+    public function testContextMetadataFailureDoesNotPreventCorrelationHeader(): void
+    {
+        $factory = new Psr17Factory();
+        $generator = $this->createStub(\Componenta\Error\Http\HttpErrorResponseGeneratorInterface::class);
+        $generator->method('generate')->willReturn($factory->createResponse(500));
+        $context = $this->createStub(HttpErrorContextInterface::class);
+        $context->method('withAttribute')->willThrowException(new RuntimeException('context write failed'));
+
+        $response = (new HttpErrorHandler($generator))->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-custom'), $context);
+        self::assertSame('ERR-custom', $response->getHeaderLine('X-Error-ID'));
+        self::assertSame(500, $response->getStatusCode());
+    }
+
+    public function testLargeResponseCompletesShortWritesWithoutChangingContent(): void
+    {
+        $body = str_repeat('0123456789', 2000);
+        $actual = '';
+        $stream = $this->createStub(StreamInterface::class);
+        $stream->method('write')->willReturnCallback(static function (string $bytes) use (&$actual): int {
+            self::assertLessThanOrEqual(8192, strlen($bytes));
+            $part = substr($bytes, 0, 17);
+            $actual .= $part;
+            return strlen($part);
+        });
+        \Componenta\Error\Internal\StreamWriter::write($stream, $body);
+        self::assertSame($body, $actual);
+    }
 }

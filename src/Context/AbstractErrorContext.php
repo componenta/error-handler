@@ -14,17 +14,24 @@ use Componenta\Error\ErrorContextInterface;
  * for all error context implementations. Subclasses should extend
  * this class and add their specific context properties.
  *
- * This class is immutable - withAttribute() and withAttributes()
- * return new instances with the modified attributes.
+ * Attribute bindings are immutable snapshots. Object values, resources and
+ * nested reference-bearing values are intentionally shared, not deep-cloned.
  */
 abstract readonly class AbstractErrorContext implements ErrorContextInterface
 {
-    /**
-     * @param array<string|int, mixed> $attributes Initial context attributes
-     */
-    public function __construct(
-        private array $attributes = [],
-    ) {
+    /** @var array<string|int, mixed> */
+    private array $attributes;
+
+    /** @param array<string|int, mixed> $attributes Initial context attributes */
+    public function __construct(array $attributes = [])
+    {
+        // A normal array assignment retains explicit PHP reference slots.
+        $snapshot = [];
+        foreach ($attributes as $key => $value) {
+            $snapshot[$key] = $value;
+        }
+
+        $this->attributes = $snapshot;
     }
 
     /**

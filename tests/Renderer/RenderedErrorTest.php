@@ -46,7 +46,7 @@ final class RenderedErrorTest extends TestCase
     }
 
     #[DataProvider('invalidContentTypes')]
-    public function testRejectsMissingAndControlCharacterContentTypes(string $contentType): void
+    public function testRejectsInvalidContentTypes(string $contentType): void
     {
         $this->expectException(InvalidArgumentException::class);
         new RenderedError('content', $contentType);
@@ -58,6 +58,30 @@ final class RenderedErrorTest extends TestCase
         yield ['  '];
         yield ["text/plain\r\nX-Injected: yes"];
         yield ["text/plain\0"];
+        yield ['text'];
+        yield ['text/'];
+        yield ['*/*'];
+        yield ['text/*'];
+        yield ['text/html, text/plain'];
+        yield ['text/html; charset'];
+        yield ['text/html; charset =utf-8'];
+        yield ['text/html; charset="unclosed'];
+        yield ['text/html;'];
+    }
+
+    #[DataProvider('validContentTypes')]
+    public function testPreservesValidConcreteMediaType(string $type): void
+    {
+        self::assertSame($type, (new RenderedError('', $type))->contentType);
+    }
+
+    public static function validContentTypes(): iterable
+    {
+        yield ['application/problem+json'];
+        yield ['application/vnd.example.error+json; version=2'];
+        yield ['Text/HTML; Charset="utf-8"'];
+        yield ['text/plain; note="a; b, c"'];
+        yield ['text/plain; note="escaped \\" quote"'];
     }
 
     #[DataProvider('renderers')]

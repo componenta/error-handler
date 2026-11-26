@@ -16,11 +16,18 @@ final class StreamWriter
         $offset = 0;
 
         while ($offset < $length) {
-            $written = $stream->write(substr($body, $offset));
-            if ($written <= 0 || $written > $length - $offset) {
-                throw new RuntimeException('Unable to write the complete error response.');
+            // Bound repeated copies when a stream accepts very small writes.
+            $chunk = substr($body, $offset, 8192);
+            $chunkLength = strlen($chunk);
+            $position = 0;
+            while ($position < $chunkLength) {
+                $written = $stream->write(substr($chunk, $position));
+                if ($written <= 0 || $written > $chunkLength - $position) {
+                    throw new RuntimeException('Unable to write the complete error response.');
+                }
+                $position += $written;
             }
-            $offset += $written;
+            $offset += $chunkLength;
         }
     }
 }

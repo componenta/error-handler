@@ -12,6 +12,8 @@ use InvalidArgumentException;
  *
  * Defines common methods for accessing context attributes.
  * Implementations provide environment-specific information (HTTP, CLI, etc.).
+ * Attribute bindings are snapshots; supplied object/resource values retain their
+ * identity. No deep immutability of arbitrary nested values is promised.
  */
 interface ErrorContextInterface
 {
