@@ -114,6 +114,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         private readonly int $maxArrayDepth = self::DEFAULT_MAX_ARRAY_DEPTH,
         private readonly int $maxBodyLength = self::DEFAULT_MAX_BODY_LENGTH,
         private readonly bool $captureJsonBody = false,
+        private readonly bool $includeSource = true,
     ) {
         if (($maxFrames !== null && $maxFrames < 1) || ($maxExceptions !== null && $maxExceptions < 1)
             || $maxStringLength < 1 || $maxArrayDepth < 0 || $maxBodyLength < 1 || $maxBodyLength > 1_048_576) {
@@ -744,7 +745,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
      */
     private function getCodeSnippet(string $file, int $errorLine): ?array
     {
-        return \Componenta\Error\Diagnostic\SourceExcerpt::read($file, $errorLine, self::CONTEXT_LINES);
+        return $this->includeSource ? \Componenta\Error\Diagnostic\SourceExcerpt::read($file, $errorLine, self::CONTEXT_LINES) : null;
     }
 
     /**

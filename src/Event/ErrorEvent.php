@@ -17,14 +17,14 @@ use Throwable;
  * Immutable event containing exception and context information.
  * Dispatched to listeners when exceptions are reported.
  */
-final readonly class ErrorEvent implements ErrorEventInterface
+final class ErrorEvent implements ErrorEventInterface
 {
     /**
      * @param Throwable $exception The exception that occurred
      * @param ErrorContextInterface $context The error context
      * @param DateTimeImmutable $timestamp Event timestamp (defaults to now)
      */
-    public ErrorContextInterface $context;
+    public readonly ErrorContextInterface $context;
 
     public ?string $errorId {
         get {
@@ -34,11 +34,11 @@ final readonly class ErrorEvent implements ErrorEventInterface
     }
 
     public function __construct(
-        public Throwable $exception,
+        public readonly Throwable $exception,
         ErrorContextInterface $context,
-        public mixed $result = null,
+        public readonly mixed $result = null,
         ?string $errorId = null,
-        public DateTimeImmutable $timestamp = new DateTimeImmutable('now', new DateTimeZone('UTC')),
+        public readonly DateTimeImmutable $timestamp = new DateTimeImmutable('now', new DateTimeZone('UTC')),
     ) {
         $this->context = $errorId !== null && $context->getAttribute(ErrorContextAttribute::ERROR_ID, null) !== $errorId
             ? $context->withAttribute(ErrorContextAttribute::ERROR_ID, $errorId)
