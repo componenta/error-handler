@@ -24,7 +24,7 @@ final readonly class HttpStatusResolver implements HttpStatusResolverInterface
         if ($this->useExceptionCode) {
             $code = $exception->getCode();
 
-            if ($code >= 400 && $code < 600) {
+            if (is_int($code) && $code >= 400 && $code < 600) {
                 return $code;
             }
         }

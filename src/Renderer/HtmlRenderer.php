@@ -36,15 +36,16 @@ readonly class HtmlRenderer implements ErrorRendererInterface
      */
     public function render(Throwable $exception, ErrorContextInterface $context): string
     {
-        $type = htmlspecialchars($exception::class, ENT_QUOTES, $this->charset);
-        $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES, $this->charset);
-        $code = $exception->getCode();
+        $type = htmlspecialchars($exception::class, ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
+        $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
+        $code = htmlspecialchars((string) $exception->getCode(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
 
+        $charset = htmlspecialchars($this->charset, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $debug = '';
         if ($this->debug) {
-            $file = htmlspecialchars($exception->getFile(), ENT_QUOTES, $this->charset);
+            $file = htmlspecialchars($exception->getFile(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
             $line = $exception->getLine();
-            $trace = htmlspecialchars($exception->getTraceAsString(), ENT_QUOTES, $this->charset);
+            $trace = htmlspecialchars($exception->getTraceAsString(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
 
             $debug = <<<HTML
             <div class="debug">
@@ -58,7 +59,7 @@ HTML;
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="{$this->charset}">
+    <meta charset="$charset">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>$type</title>
     <style>

@@ -84,7 +84,7 @@ readonly class SafeRenderer implements ErrorRendererInterface
             $data['error']['support'] = $this->supportEmail;
         }
 
-        return json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        return json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -164,7 +164,7 @@ readonly class SafeRenderer implements ErrorRendererInterface
         return sprintf(
             '%s-%s-%d',
             $this->errorIdPrefix,
-            strtoupper(bin2hex(random_bytes(4))),
+            strtoupper(bin2hex(random_bytes(16))),
             time(),
         );
     }

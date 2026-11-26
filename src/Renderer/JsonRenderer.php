@@ -54,7 +54,7 @@ readonly class JsonRenderer implements ErrorRendererInterface
             }
         }
 
-        return json_encode($data, $this->jsonFlags | JSON_THROW_ON_ERROR);
+        return json_encode($data, $this->jsonFlags | JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**

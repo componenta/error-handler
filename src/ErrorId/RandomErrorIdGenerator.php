@@ -20,7 +20,7 @@ final readonly class RandomErrorIdGenerator implements ErrorIdGeneratorInterface
         return sprintf(
             '%s-%s-%d',
             $this->prefix,
-            strtoupper(bin2hex(random_bytes(4))),
+            strtoupper(bin2hex(random_bytes(16))),
             time(),
         );
     }

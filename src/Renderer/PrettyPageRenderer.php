@@ -581,7 +581,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         }
 
         if ($length > $this->maxStringLength) {
-            return '"' . substr($value, 0, $this->maxStringLength) . '..." (' . $length . ' chars)';
+            return '"' . mb_strcut($value, 0, $this->maxStringLength, 'UTF-8') . '..." (' . $length . ' chars)';
         }
 
         return '"' . $value . '"';
