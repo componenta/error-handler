@@ -39,7 +39,13 @@ final readonly class CompositeErrorListenerProvider implements ErrorListenerProv
         foreach ($this->providers as $provider) {
             try {
                 foreach ($provider->provideFor($exception) as $listener) {
-                    $listener = ListenerBoundary::requireListener($listener);
+                    try {
+                        $listener = ListenerBoundary::requireListener($listener);
+                    } catch (Throwable $failure) {
+                        // A malformed entry is recoverable while the iterable itself remains usable.
+                        FailureLog::write('error listener provider entry', $failure, $exception);
+                        continue;
+                    }
                     if (!isset($seen[spl_object_id($listener)])) {
                         $seen[spl_object_id($listener)] = $listener;
                         yield $listener;

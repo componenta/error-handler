@@ -58,6 +58,28 @@ final class CompositeErrorListenerProviderTest extends TestCase
         self::assertSame([$first, $second], iterator_to_array($provider->provideFor(new RuntimeException())));
     }
 
+    public function testMalformedEntryDoesNotDiscardLaterValidListeners(): void
+    {
+        $first = ErrorListener::createFrom(static function (): void {});
+        $second = ErrorListener::createFrom(static function (): void {});
+        $third = ErrorListener::createFrom(static function (): void {});
+        $partial = new readonly class($first, $second) implements ErrorListenerProviderInterface {
+            public function __construct(private ErrorListenerInterface $first, private ErrorListenerInterface $second) {}
+            public function provideFor(Throwable $exception): iterable
+            {
+                yield $this->first;
+                yield null;
+                yield $this->second;
+                yield $this->first;
+            }
+        };
+        $provider = new CompositeErrorListenerProvider([
+            $partial,
+            new ArrayErrorListenerProvider([Throwable::class => [$third]]),
+        ]);
+        self::assertSame([$first, $second, $third], iterator_to_array($provider->provideFor(new RuntimeException())));
+    }
+
     public function testReporterDoesNotReadClockWithoutSupportingListener(): void
     {
         $clock = $this->createMock(ClockInterface::class);
