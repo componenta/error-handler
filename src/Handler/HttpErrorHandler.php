@@ -8,7 +8,6 @@ use Componenta\Error\ConfigKey;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\ErrorId\ErrorIdGeneratorInterface;
-use Componenta\Error\Event\ErrorListenerInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\Context\HttpErrorContextInterface;
@@ -23,7 +22,7 @@ use Componenta\Error\Http\EmergencyHttpResponseGenerator;
 use Componenta\Error\Internal\FailureLog;
 use Componenta\Error\Reporter\ListenerExceptionPolicy;
 
-class HttpErrorHandler implements HttpErrorHandlerInterface
+final class HttpErrorHandler implements HttpErrorHandlerInterface
 {
     public const string FALLBACK_GENERATOR = ConfigKey::HTTP_FALLBACK_GENERATOR;
     public const string RENDERER = ConfigKey::HTTP_RENDERER;
@@ -33,9 +32,9 @@ class HttpErrorHandler implements HttpErrorHandlerInterface
     /**
      * @var list<array{generator: HttpErrorResponseGeneratorInterface, priority: int}>
      */
-    protected array $generators = [];
+    private array $generators = [];
 
-    protected bool $needsSort = false;
+    private bool $needsSort = false;
 
     public static function createDefaults(
         ResponseFactoryInterface $responseFactory,
@@ -57,9 +56,9 @@ class HttpErrorHandler implements HttpErrorHandlerInterface
     }
 
     public function __construct(
-        protected HttpErrorResponseGeneratorInterface $fallbackGenerator,
-        protected ErrorReporterInterface $reporter = new ErrorReporter(),
-        protected ErrorIdGeneratorInterface $errorIdGenerator = new RandomErrorIdGenerator(),
+        private readonly HttpErrorResponseGeneratorInterface $fallbackGenerator,
+        private readonly ErrorReporterInterface $reporter = new ErrorReporter(),
+        private readonly ErrorIdGeneratorInterface $errorIdGenerator = new RandomErrorIdGenerator(),
         private readonly ?HttpErrorResponseGeneratorInterface $emergencyGenerator = null,
         private readonly ListenerExceptionPolicy $reporterFailurePolicy = ListenerExceptionPolicy::Swallow,
     ) {
@@ -69,27 +68,6 @@ class HttpErrorHandler implements HttpErrorHandlerInterface
     {
         $this->generators[] = ['generator' => $generator, 'priority' => $priority];
         $this->needsSort = true;
-    }
-
-    public function addListener(ErrorListenerInterface $listener, int $priority = 0): void
-    {
-        if (!$this->reporter instanceof ErrorReporter) {
-            throw new \LogicException('Listeners can only be added to the default error reporter.');
-        }
-
-        $this->reporter->addListener($listener, $priority);
-    }
-
-    /**
-     * @param class-string<Throwable>|list<class-string<Throwable>>|callable(Throwable, ErrorContextInterface): bool $filter
-     */
-    public function addNonReportableError(string|array|callable $filter): void
-    {
-        if (!$this->reporter instanceof ErrorReporter) {
-            throw new \LogicException('Non-reportable filters can only be added to the default error reporter.');
-        }
-
-        $this->reporter->addNonReportableError($filter);
     }
 
     public function supports(Throwable $exception, ErrorContextInterface $context): bool
@@ -144,7 +122,7 @@ class HttpErrorHandler implements HttpErrorHandlerInterface
         return $response;
     }
 
-    protected function getGenerator(
+    private function getGenerator(
         Throwable $exception,
         ErrorContextInterface $context,
     ): HttpErrorResponseGeneratorInterface {
@@ -159,7 +137,7 @@ class HttpErrorHandler implements HttpErrorHandlerInterface
         return $this->fallbackGenerator;
     }
 
-    protected function sortGenerators(): void
+    private function sortGenerators(): void
     {
         if ($this->needsSort) {
             usort(

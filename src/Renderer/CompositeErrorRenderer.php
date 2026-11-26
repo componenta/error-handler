@@ -15,7 +15,7 @@ use Throwable;
  * supports the given exception. Falls back to a default renderer
  * if no other renderer matches.
  */
-class CompositeErrorRenderer implements HttpErrorRendererInterface
+final class CompositeErrorRenderer implements HttpErrorRendererInterface
 {
     /**
      * @var array<array{renderer: ErrorRendererInterface, priority: int}> Registered renderers
@@ -48,6 +48,9 @@ class CompositeErrorRenderer implements HttpErrorRendererInterface
      */
     public function addRenderer(ErrorRendererInterface $renderer, int $priority = 0): void
     {
+        if ($renderer === $this || ($renderer instanceof self && $renderer->contains($this))) {
+            throw new \InvalidArgumentException('Cyclic composite error renderer.');
+        }
         $this->renderers[] = ['renderer' => $renderer, 'priority' => $priority];
         $this->needsSort = true;
     }
@@ -119,5 +122,22 @@ class CompositeErrorRenderer implements HttpErrorRendererInterface
         return $renderer instanceof HttpErrorRendererInterface
             ? $renderer->renderHttp($exception, $context)
             : new RenderedError($renderer->render($exception, $context), 'text/plain; charset=utf-8');
+    }
+
+    private function contains(self $needle): bool
+    {
+        if ($this === $needle) {
+            return true;
+        }
+        if ($this->fallbackRenderer instanceof self && $this->fallbackRenderer->contains($needle)) {
+            return true;
+        }
+        foreach ($this->renderers as ['renderer' => $renderer]) {
+            if ($renderer instanceof self && $renderer->contains($needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

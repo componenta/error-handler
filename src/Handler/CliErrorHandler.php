@@ -9,7 +9,6 @@ use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\ErrorId\ErrorIdGeneratorInterface;
-use Componenta\Error\Event\ErrorListenerInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\ErrorId\RandomErrorIdGenerator;
@@ -21,7 +20,7 @@ use Componenta\Error\Reporter\ListenerExceptionPolicy;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class CliErrorHandler implements CliErrorHandlerInterface
+final class CliErrorHandler implements CliErrorHandlerInterface
 {
     public const string FALLBACK_HANDLER = ConfigKey::CLI_FALLBACK_HANDLER;
     public const string RENDERER = ConfigKey::CLI_RENDERER;
@@ -30,9 +29,9 @@ class CliErrorHandler implements CliErrorHandlerInterface
     /**
      * @var list<array{handler: CliErrorHandlerInterface, priority: int}>
      */
-    protected array $handlers = [];
+    private array $handlers = [];
 
-    protected bool $needsSort = false;
+    private bool $needsSort = false;
 
     public static function createDefaults(
         ?ErrorRendererInterface $renderer = null,
@@ -47,38 +46,23 @@ class CliErrorHandler implements CliErrorHandlerInterface
     }
 
     public function __construct(
-        protected CliErrorHandlerInterface $fallbackHandler,
-        protected ErrorReporterInterface $reporter = new ErrorReporter(),
-        protected ErrorIdGeneratorInterface $errorIdGenerator = new RandomErrorIdGenerator(),
+        private readonly CliErrorHandlerInterface $fallbackHandler,
+        private readonly ErrorReporterInterface $reporter = new ErrorReporter(),
+        private readonly ErrorIdGeneratorInterface $errorIdGenerator = new RandomErrorIdGenerator(),
         private readonly ListenerExceptionPolicy $reporterFailurePolicy = ListenerExceptionPolicy::Swallow,
     ) {
+        if ($fallbackHandler instanceof self) {
+            throw new \InvalidArgumentException('A CLI aggregate cannot be used as a fallback delegate.');
+        }
     }
 
     public function addHandler(CliErrorHandlerInterface $handler, int $priority = 0): void
     {
+        if ($handler instanceof self) {
+            throw new \InvalidArgumentException('A CLI aggregate cannot be registered as its own delegate.');
+        }
         $this->handlers[] = ['handler' => $handler, 'priority' => $priority];
         $this->needsSort = true;
-    }
-
-    public function addListener(ErrorListenerInterface $listener, int $priority = 0): void
-    {
-        if (!$this->reporter instanceof ErrorReporter) {
-            throw new \LogicException('Listeners can only be added to the default error reporter.');
-        }
-
-        $this->reporter->addListener($listener, $priority);
-    }
-
-    /**
-     * @param class-string<Throwable>|list<class-string<Throwable>>|callable(Throwable, ErrorContextInterface): bool $filter
-     */
-    public function addNonReportableError(string|array|callable $filter): void
-    {
-        if (!$this->reporter instanceof ErrorReporter) {
-            throw new \LogicException('Non-reportable filters can only be added to the default error reporter.');
-        }
-
-        $this->reporter->addNonReportableError($filter);
     }
 
     public function supports(Throwable $exception, ErrorContextInterface $context): bool
@@ -128,7 +112,7 @@ class CliErrorHandler implements CliErrorHandlerInterface
         }
     }
 
-    protected function getHandler(Throwable $exception, ErrorContextInterface $context): CliErrorHandlerInterface
+    private function getHandler(Throwable $exception, ErrorContextInterface $context): CliErrorHandlerInterface
     {
         $this->sortHandlers();
 
@@ -141,7 +125,7 @@ class CliErrorHandler implements CliErrorHandlerInterface
         return $this->fallbackHandler;
     }
 
-    protected function sortHandlers(): void
+    private function sortHandlers(): void
     {
         if ($this->needsSort) {
             usort(

@@ -28,12 +28,13 @@ final class ErrorHandlingFailureTest extends TestCase
         $id = $this->createStub(ErrorIdGeneratorInterface::class);
         $id->method('generate')->willThrowException(new RuntimeException('broken generator'));
         $reported = [];
-        $reporter = new ErrorReporter();
-        $reporter->addNonReportableError(static fn () => throw new RuntimeException('broken filter'));
-        $reporter->addListener(ErrorListener::createFrom(static function (ErrorEventInterface $event) use (&$reported): void {
+        $listeners = new \Componenta\Error\Event\ErrorListenerProvider();
+        $listeners->addListener(ErrorListener::createFrom(static function (ErrorEventInterface $event) use (&$reported): void {
             $reported[] = $event->exception;
         }));
 
+        $reporter = new ErrorReporter($listeners);
+        $reporter->addNonReportableError(static fn () => throw new RuntimeException('broken filter'));
         $handler = HttpErrorHandler::createDefaults(new Psr17Factory(), $renderer, $reporter, $id);
         $response = $handler->handle($original, new HttpContext(new ServerRequest('GET', '/')));
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Componenta\Error\Event;
 
 use Throwable;
+use Closure;
+use Componenta\Error\Internal\ErrorPredicate;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListenerInterface;
@@ -15,17 +17,17 @@ use Componenta\Error\Event\ErrorListenerInterface;
  * Wraps a callable to implement ErrorListenerInterface.
  * Supports filtering by exception class or custom callable.
  */
-final class ErrorListener implements ErrorListenerInterface
+final readonly class ErrorListener implements ErrorListenerInterface
 {
     /**
      * @var callable(ErrorEventInterface): void
      */
-    private mixed $callback;
+    private Closure $callback;
 
     /**
      * @var callable(Throwable, ErrorContextInterface): bool|null
      */
-    private mixed $supports;
+    private ?Closure $supports;
 
     /**
      * @param callable(ErrorEventInterface): void $callback Listener callback
@@ -35,13 +37,8 @@ final class ErrorListener implements ErrorListenerInterface
         callable $callback,
         null|string|array|callable $supports = null,
     ) {
-        $this->callback = $callback;
-        $this->supports = match (true) {
-            is_callable($supports) => $supports,
-            is_string($supports) => static fn(Throwable $throwable): bool => $throwable instanceof $supports,
-            is_array($supports) => static fn(Throwable $throwable): bool => array_any($supports, static fn(string $cls): bool => $throwable instanceof $cls),
-            default => null,
-        };
+        $this->callback = Closure::fromCallable($callback);
+        $this->supports = $supports === null ? null : ErrorPredicate::normalize($supports);
     }
 
     /**

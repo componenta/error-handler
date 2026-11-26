@@ -21,6 +21,6 @@ final readonly class ErrorReporterFactory
             ? $container->get($this->listenerKey)
             : null;
 
-        return new ErrorReporter(ErrorListenerProvider::createFrom($provider));
+        return new ErrorReporter($provider ?? new ErrorListenerProvider());
     }
 }

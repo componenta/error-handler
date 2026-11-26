@@ -102,8 +102,8 @@ final class CliErrorHandlerTest extends TestCase
     public function testReportSkipsWhenStringFilterMatches(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported);
-        $handler->addNonReportableError(RuntimeException::class);
+        $handler = $this->handlerWithReporter($reported, $reporter);
+        $reporter->addNonReportableError(RuntimeException::class);
 
         $handler->handle(new RuntimeException(), $this->context());
         $handler->handle($shouldReport = new InvalidArgumentException(), $this->context());
@@ -114,8 +114,8 @@ final class CliErrorHandlerTest extends TestCase
     public function testReportSkipsWhenArrayFilterMatches(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported);
-        $handler->addNonReportableError([RuntimeException::class, InvalidArgumentException::class]);
+        $handler = $this->handlerWithReporter($reported, $reporter);
+        $reporter->addNonReportableError([RuntimeException::class, InvalidArgumentException::class]);
 
         $handler->handle(new RuntimeException(), $this->context());
         $handler->handle(new InvalidArgumentException(), $this->context());
@@ -127,8 +127,8 @@ final class CliErrorHandlerTest extends TestCase
     public function testReportSkipsWhenCallableFilterReturnsTrue(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported);
-        $handler->addNonReportableError(
+        $handler = $this->handlerWithReporter($reported, $reporter);
+        $reporter->addNonReportableError(
             static fn(Throwable $e, ErrorContextInterface $c): bool => $e->getCode() < 500,
         );
 
@@ -153,7 +153,7 @@ final class CliErrorHandlerTest extends TestCase
     /**
      * @param list<Throwable> $reported
      */
-    private function handlerWithReporter(array &$reported): CliErrorHandler
+    private function handlerWithReporter(array &$reported, ?ErrorReporter &$reporter): CliErrorHandler
     {
         $listeners = new ErrorListenerProvider();
         $listeners->addListener(ErrorListener::createFrom(
@@ -162,9 +162,10 @@ final class CliErrorHandlerTest extends TestCase
             },
         ));
 
+        $reporter = new ErrorReporter($listeners);
         return new CliErrorHandler(
             new CliErrorHandlerStub(renderOutput: 'error'),
-            new ErrorReporter($listeners),
+            $reporter,
         );
     }
 

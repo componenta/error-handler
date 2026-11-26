@@ -114,8 +114,8 @@ final class HttpErrorHandlerTest extends TestCase
     public function testReportSkipsWhenStringFilterMatches(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported);
-        $handler->addNonReportableError(RuntimeException::class);
+        $handler = $this->handlerWithReporter($reported, $reporter);
+        $reporter->addNonReportableError(RuntimeException::class);
 
         $handler->handle(new RuntimeException(), $this->context());
         $handler->handle($shouldReport = new InvalidArgumentException(), $this->context());
@@ -126,8 +126,8 @@ final class HttpErrorHandlerTest extends TestCase
     public function testReportSkipsWhenArrayFilterMatches(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported);
-        $handler->addNonReportableError([RuntimeException::class, InvalidArgumentException::class]);
+        $handler = $this->handlerWithReporter($reported, $reporter);
+        $reporter->addNonReportableError([RuntimeException::class, InvalidArgumentException::class]);
 
         $handler->handle(new RuntimeException(), $this->context());
         $handler->handle(new InvalidArgumentException(), $this->context());
@@ -139,8 +139,8 @@ final class HttpErrorHandlerTest extends TestCase
     public function testReportSkipsWhenCallableFilterReturnsTrue(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported);
-        $handler->addNonReportableError(
+        $handler = $this->handlerWithReporter($reported, $reporter);
+        $reporter->addNonReportableError(
             static fn(Throwable $e, ErrorContextInterface $c): bool => $e->getCode() < 500,
         );
 
@@ -168,7 +168,7 @@ final class HttpErrorHandlerTest extends TestCase
     /**
      * @param list<Throwable> $reported
      */
-    private function handlerWithReporter(array &$reported): HttpErrorHandler
+    private function handlerWithReporter(array &$reported, ?ErrorReporter &$reporter): HttpErrorHandler
     {
         $factory = new Psr17Factory();
         $listeners = new ErrorListenerProvider();
@@ -178,9 +178,10 @@ final class HttpErrorHandlerTest extends TestCase
             },
         ));
 
+        $reporter = new ErrorReporter($listeners);
         return new HttpErrorHandler(
             new HttpErrorHandlerStub($factory->createResponse(500)),
-            new ErrorReporter($listeners),
+            $reporter,
         );
     }
 

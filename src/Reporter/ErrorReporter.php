@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Componenta\Error\Reporter;
 
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Event\ErrorListenerInterface;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\Event\ErrorListenerProvider;
 use Throwable;
 use Componenta\Error\Internal\FailureLog;
+use Componenta\Error\Internal\ErrorPredicate;
 
 final class ErrorReporter implements ErrorReporterInterface
 {
@@ -26,24 +26,12 @@ final class ErrorReporter implements ErrorReporterInterface
     ) {
     }
 
-    public function addListener(ErrorListenerInterface $listener, int $priority = 0): void
-    {
-        $this->listeners->addListener($listener, $priority);
-    }
-
     /**
      * @param class-string<Throwable>|list<class-string<Throwable>>|callable(Throwable, ErrorContextInterface): bool $filter
      */
     public function addNonReportableError(string|array|callable $filter): void
     {
-        $this->nonReportable[] = match (true) {
-            is_callable($filter) => $filter,
-            is_string($filter) => static fn(Throwable $e, ErrorContextInterface $c): bool => $e instanceof $filter,
-            default => static fn(Throwable $e, ErrorContextInterface $c): bool => array_any(
-                $filter,
-                static fn(string $class): bool => $e instanceof $class,
-            ),
-        };
+        $this->nonReportable[] = ErrorPredicate::normalize($filter);
     }
 
     public function report(
@@ -52,18 +40,18 @@ final class ErrorReporter implements ErrorReporterInterface
         mixed $result = null,
         ?string $errorId = null,
     ): void {
-        if ($this->shouldNotReport($exception, $context)) {
-            return;
-        }
-
-        $event = new ErrorEvent(
-            exception: $exception,
-            context: $context,
-            result: $result,
-            errorId: $errorId,
-        );
-
         try {
+            $event = new ErrorEvent(
+                exception: $exception,
+                context: $context,
+                result: $result,
+                errorId: $errorId,
+            );
+            $context = $event->context;
+            if ($this->shouldNotReport($exception, $context)) {
+                return;
+            }
+
             foreach ($this->listeners->getListeners() as $listener) {
                 try {
                     if (!$listener->supports($exception, $context)) {
