@@ -49,13 +49,6 @@ final readonly class ArrayErrorListenerProvider implements ErrorListenerProvider
 
     public function provideFor(Throwable $exception): iterable
     {
-        $seen = [];
-        foreach ($this->index->matching($exception) as $listener) {
-            // The first match has the highest matching priority.
-            if (!isset($seen[spl_object_id($listener)])) {
-                $seen[spl_object_id($listener)] = $listener;
-                yield $listener;
-            }
-        }
+        yield from $this->index->matching($exception);
     }
 }

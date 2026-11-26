@@ -41,10 +41,18 @@ final class ListenerIndex
 
         $matched = [];
         $types = [];
+        $seen = [];
         foreach ($this->registrations as $entry) {
             $type = $entry['exception'];
-            if ($types[$type] ??= $exception instanceof $type) {
-                $matched[] = $entry['value'];
+            if (!($types[$type] ??= $exception instanceof $type)) {
+                continue;
+            }
+
+            $value = $entry['value'];
+            $key = is_object($value) ? 'o:' . spl_object_id($value) : 's:' . $value;
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $matched[] = $value;
             }
         }
 

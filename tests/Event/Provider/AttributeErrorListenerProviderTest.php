@@ -76,6 +76,22 @@ final class AttributeErrorListenerProviderTest extends TestCase
         self::assertSame([$listener], iterator_to_array($provider->provideFor(new RuntimeException())));
     }
 
+    public function testResolverFailureIsNotCachedAndLaterTraversalCanRecover(): void
+    {
+        $calls = 0;
+        $listener = new GeneralListener();
+        $provider = new AttributeErrorListenerProvider([GeneralListener::class], static function () use (&$calls, $listener): ErrorListenerInterface {
+            if (++$calls === 1) {
+                throw new RuntimeException('transient resolver failure');
+            }
+            return $listener;
+        });
+        $error = new RuntimeException();
+        self::assertSame([], iterator_to_array($provider->provideFor($error)));
+        self::assertSame([$listener], iterator_to_array($provider->provideFor($error)));
+        self::assertSame(2, $calls);
+    }
+
     public function testInvalidAttributeFailsAtConstructionWithoutResolvingService(): void
     {
         $this->expectException(InvalidArgumentException::class);

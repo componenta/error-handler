@@ -42,7 +42,7 @@ final readonly class AttributeErrorListenerProvider implements ErrorListenerProv
             }
 
             $reflection = new ReflectionClass($class);
-            if ($reflection->isAbstract() || $reflection->isInterface()) {
+            if ($reflection->isAbstract() || $reflection->isInterface() || $reflection->isEnum()) {
                 throw new InvalidArgumentException('Error listener class must be concrete.');
             }
             $canonical = $reflection->getName();
@@ -68,13 +68,8 @@ final readonly class AttributeErrorListenerProvider implements ErrorListenerProv
 
     public function provideFor(Throwable $exception): iterable
     {
-        $classes = [];
         $seen = [];
         foreach ($this->index->matching($exception) as $class) {
-            if (isset($classes[$class])) {
-                continue;
-            }
-            $classes[$class] = true;
 
             try {
                 // Validate the resolver boundary, even when a caller bypasses PHPDoc types.
