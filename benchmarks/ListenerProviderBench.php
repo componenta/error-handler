@@ -4,26 +4,15 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Benchmarks;
 
-use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\ErrorOccurrence;
-use Componenta\Error\Event\Attribute\ListenTo;
-use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
 use Componenta\Error\Event\ErrorListenerInterface;
 use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Event\Provider\AttributeErrorListenerProvider;
 use Componenta\Error\Event\Provider\CompositeErrorListenerProvider;
+use Componenta\Error\Tests\Fixture\BenchmarkAttributedListener;
 use PhpBench\Attributes as Bench;
 use RuntimeException;
 use Throwable;
-
-#[ListenTo(Throwable::class)]
-#[ListenTo(RuntimeException::class, priority: 100)]
-final class BenchmarkAttributedListener implements ErrorListenerInterface
-{
-    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool { return true; }
-    public function handleEvent(ErrorEventInterface $event): void {}
-}
 
 #[Bench\BeforeMethods('setUp')]
 #[Bench\Revs(100)]
