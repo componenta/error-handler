@@ -21,7 +21,7 @@ interface HttpErrorHandlerInterface extends SupportsErrorInterface
      *
      * @param ErrorOccurrence $error Error occurrence
      * @param HttpErrorContextInterface $context HTTP context
-     * @return ResponseInterface PSR-7 response with error content
+     * @return ResponseInterface Final PSR-7 response selected for the occurrence
      */
     public function handle(
         ErrorOccurrence $error,

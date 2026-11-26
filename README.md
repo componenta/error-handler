@@ -29,7 +29,6 @@ composer require componenta/error-handler
 - Error reporting listeners for logging, monitoring, and notifications.
 - Immutable HTTP and CLI contexts.
 - PSR-15 middleware for HTTP applications.
-- Config provider for framework integration.
 
 ## HTTP Usage
 
@@ -53,7 +52,7 @@ $handler->addGenerator(new NotFoundGenerator($responseFactory), priority: 100);
 $handler->addGenerator(new ValidationGenerator($responseFactory), priority: 50);
 ```
 
-Higher priority generators are checked first.
+Higher priority generators are checked first. The built-in generator accepts only 4xx/5xx statuses. Explicit custom generators may intentionally recover with a different final status, such as a login redirect. They own the response body (including HEAD semantics), cache policy and representation headers. The aggregate preserves their response and adds the correlation ID on a best-effort basis.
 
 Custom generators implement `HttpErrorResponseGeneratorInterface`:
 

@@ -86,6 +86,21 @@ final class HttpErrorHandlerTest extends TestCase
         self::assertSame(201, $response->getStatusCode());
     }
 
+    public function testSpecializedGeneratorCanIntentionallyRecoverWithRedirect(): void
+    {
+        $factory = new Psr17Factory();
+        $handler = new HttpErrorHandler(new HttpErrorHandlerStub($factory->createResponse(500)));
+        $handler->addGenerator(new HttpErrorHandlerStub(
+            $factory->createResponse(303)->withHeader('Location', '/login')->withHeader('Cache-Control', 'no-store'),
+        ));
+
+        $response = $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-redirect'), $this->context());
+        self::assertSame(303, $response->getStatusCode());
+        self::assertSame('/login', $response->getHeaderLine('Location'));
+        self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
+        self::assertSame('ERR-redirect', $response->getHeaderLine('X-Error-ID'));
+    }
+
     public function testHandleReportsExceptionWithResponseStatusAndErrorId(): void
     {
         $factory = new Psr17Factory();

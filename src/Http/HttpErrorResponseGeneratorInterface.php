@@ -9,6 +9,13 @@ use Componenta\Error\SupportsErrorInterface;
 use Psr\Http\Message\ResponseInterface;
 use Componenta\Error\ErrorOccurrence;
 
+/**
+ * Produces the final HTTP response for an occurrence.
+ *
+ * The standard generator produces 4xx/5xx. Explicit custom generators may
+ * recover with another final status (for example a login redirect). They own
+ * response semantics, including HEAD, cache policy and representation headers.
+ */
 interface HttpErrorResponseGeneratorInterface extends SupportsErrorInterface
 {
     public function generate(
