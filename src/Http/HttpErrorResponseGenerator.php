@@ -37,8 +37,22 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
             ? $this->renderer->renderHttp($exception, $context)
             : new RenderedError($this->renderer->render($exception, $context), 'text/plain; charset=utf-8');
 
-        $response = $this->responseFactory
-            ->createResponse($statusCode)
+        $response = $this->responseFactory->createResponse($statusCode);
+
+        if ($exception instanceof HttpHeadersAwareInterface || $exception instanceof \Componenta\Http\Exception\HttpException) {
+            foreach ($exception->headers as $name => $value) {
+                // Representation and transport framing are owned by the generator.
+                if (!in_array(strtolower($name), [
+                    'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
+                    'connection', 'keep-alive', 'trailer', 'upgrade', 'cache-control',
+                    'x-content-type-options',
+                ], true)) {
+                    $response = $response->withHeader($name, $value);
+                }
+            }
+        }
+
+        $response = $response
             ->withHeader('Content-Type', $rendered->contentType)
             ->withHeader('Cache-Control', 'no-store')
             ->withHeader('X-Content-Type-Options', 'nosniff')

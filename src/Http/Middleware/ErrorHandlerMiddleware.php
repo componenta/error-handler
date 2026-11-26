@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Componenta\Error\Http\Middleware;
 
 use Throwable;
+use Componenta\Error\Http\HttpErrorResponseGeneratorInterface;
+use Componenta\Error\Internal\FailureLog;
 use Componenta\Error\ConfigKey;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Handler\HttpErrorHandlerInterface;
@@ -26,11 +28,12 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
 
     /**
      * @param HttpErrorHandlerInterface $errorHandler Handler for caught exceptions
-     * @param int $errorLevel Error reporting level (default: E_ALL)
+     * @param int $errorLevel Error conversion mask, intersected with process error_reporting() (default: E_ALL)
      */
     public function __construct(
         private HttpErrorHandlerInterface $errorHandler,
         private int $errorLevel = E_ALL,
+        private ?HttpErrorResponseGeneratorInterface $emergencyGenerator = null,
     ) {
     }
 
@@ -47,10 +50,10 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $oldLevel = error_reporting($this->errorLevel);
-        set_error_handler(function (int $errno, string $msg, string $file, int $line): void {
+        $oldLevel = error_reporting();
+        set_error_handler(static function (int $errno, string $msg, string $file, int $line): bool {
             if ((error_reporting() & $errno) === 0) {
-                return;
+                return false;
             }
 
             throw new \ErrorException($msg, 0, $errno, $file, $line);
@@ -59,7 +62,20 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
         try {
             return $handler->handle($request);
         } catch (Throwable $e) {
-            return $this->errorHandler->handle($e, new HttpContext($request));
+            $context = new HttpContext($request);
+            try {
+                return $this->errorHandler->handle($e, $context);
+            } catch (Throwable $failure) {
+                FailureLog::write('middleware error handler', $failure, $e);
+                if ($this->emergencyGenerator !== null) {
+                    try {
+                        return $this->emergencyGenerator->generate($e, $context);
+                    } catch (Throwable $secondary) {
+                        FailureLog::write('middleware emergency response', $secondary, $e);
+                    }
+                }
+                throw $e;
+            }
         } finally {
             restore_error_handler();
             error_reporting($oldLevel);

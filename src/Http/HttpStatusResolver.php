@@ -11,13 +11,13 @@ use Throwable;
 final readonly class HttpStatusResolver implements HttpStatusResolverInterface
 {
     public function __construct(
-        private bool $useExceptionCode = true,
+        private bool $useExceptionCode = false,
     ) {
     }
 
     public function resolve(Throwable $exception, HttpErrorContextInterface $context): int
     {
-        if ($exception instanceof HttpStatusAwareInterface) {
+        if ($exception instanceof HttpStatusAwareInterface || $exception instanceof \Componenta\Http\Exception\HttpException) {
             return $this->normalize($exception->statusCode);
         }
 

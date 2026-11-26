@@ -36,7 +36,7 @@ final class HttpErrorResponseGeneratorTest extends TestCase
         self::assertSame('error output', (string) $response->getBody());
     }
 
-    public function testGenerateUsesHttpExceptionCodeWhenItIsValid(): void
+    public function testGenerateUsesTypedHttpExceptionStatus(): void
     {
         $generator = new HttpErrorResponseGenerator(
             new Psr17Factory(),
@@ -44,7 +44,7 @@ final class HttpErrorResponseGeneratorTest extends TestCase
         );
 
         $response = $generator->generate(
-            new RuntimeException('missing', 404),
+            new \Componenta\Http\Exception\NotFoundException('missing'),
             new HttpContext(new ServerRequest('GET', '/')),
         );
 
@@ -59,7 +59,7 @@ final class HttpErrorResponseGeneratorTest extends TestCase
         );
 
         $response = $generator->generate(
-            new RuntimeException('missing', 404),
+            new \Componenta\Http\Exception\NotFoundException('missing'),
             new HttpContext(new ServerRequest('GET', '/missing', ['Accept' => 'application/json'])),
         );
 
