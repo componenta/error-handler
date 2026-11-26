@@ -132,6 +132,6 @@ HTML;
 
     public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
     {
-        return new RenderedError($this->render($exception, $context), 'text/html; charset=' . $this->charset);
+        return new RenderedError($this->render($exception, $context), 'text/html; charset=' . strtolower($this->charset));
     }
 }

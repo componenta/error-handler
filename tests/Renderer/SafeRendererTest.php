@@ -64,7 +64,7 @@ final class SafeRendererTest extends TestCase
         $output = $renderer->render(new RuntimeException('database password leaked'), $context);
         $decoded = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
 
-        self::assertMatchesRegularExpression('/^ERR-[A-F0-9]{8}-\d+$/', $decoded['error']['id']);
+        self::assertMatchesRegularExpression('/^ERR-[A-F0-9]{32}-\d+$/', $decoded['error']['id']);
         unset($decoded['error']['id']);
         self::assertSame(
             [

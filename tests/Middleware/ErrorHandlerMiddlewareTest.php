@@ -59,10 +59,14 @@ final class ErrorHandlerMiddlewareTest extends TestCase
             }
         };
 
-        $response = $middleware->process(new ServerRequest('GET', '/'), $handler);
-
-        self::assertSame(500, $response->getStatusCode());
-        self::assertSame('Test PHP error', $errorHandler->handledExceptions[0]->getMessage());
+        $previous = error_reporting(E_ALL);
+        try {
+            $response = $middleware->process(new ServerRequest('GET', '/'), $handler);
+            self::assertSame(500, $response->getStatusCode());
+            self::assertSame('Test PHP error', $errorHandler->handledExceptions[0]->getMessage());
+        } finally {
+            error_reporting($previous);
+        }
     }
 
     public function testProcessDelegatesThrowableToErrorHandler(): void
