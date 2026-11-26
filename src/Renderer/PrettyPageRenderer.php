@@ -730,16 +730,17 @@ final class PrettyPageRenderer implements ErrorRendererInterface
             $body->rewind();
             $content = '';
             $limit = $this->maxBodyLength + 1;
-            while (!$body->eof() && strlen($content) < $limit) {
+            while (strlen($content) < $limit) {
                 $chunk = $body->read($limit - strlen($content));
                 if ($chunk === '') {
-                    // Some valid streams set EOF only after the final empty read.
-                    if ($body->eof()) {
-                        break;
-                    }
-                    return null;
+                    // A final empty read can be what sets EOF. The check below
+                    // distinguishes that from a stream making no progress.
+                    break;
                 }
                 $content .= $chunk;
+                if ($body->eof()) {
+                    break;
+                }
             }
             if (strlen($content) > $this->maxBodyLength || !$body->eof()) {
                 return null;
