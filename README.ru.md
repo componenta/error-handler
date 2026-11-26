@@ -199,3 +199,5 @@ $handler = HttpErrorHandler::createDefaults($responseFactory, reporter: $reporte
 `composer test` — unit-тесты Pest, `composer phpstan` — статический анализ, `composer benchmark` — PHPBench. Интеграция с DI 6 требует PHP 8.5: установите `composer require --dev 'componenta/di:^6.0@dev'` и выполните `composer test:integration`. CI также проверяет пять адаптеров рендеринга с текущей версией ядра.
 
 Стандартный обработчик командной строки использует `SafeCliRenderer`: общее сообщение и идентификатор ошибки. Для диагностики явно выбирайте `PlainTextRenderer` или `ConsoleErrorRenderer`; они выводят исходные сообщения исключений и не предназначены для недоверенных получателей.
+
+Рекурсивные вызовы одного `ErrorReporter` в том же контексте выполнения игнорируются, пока работают его слушатели или фильтры. Независимые Fiber могут отправлять отчёты одновременно.

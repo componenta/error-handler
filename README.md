@@ -199,3 +199,5 @@ Requires Config 4 and PHP 8.4 or later. Register listeners on `ErrorListenerProv
 `composer test` runs unit tests with Pest. `composer phpstan` runs static analysis. `composer benchmark` runs PHPBench. The integration suite requires DI 6 (PHP 8.5); install it separately with `composer require --dev 'componenta/di:^6.0@dev'`, then run `composer test:integration`. The CI matrix also tests the five renderer adapters against the same core checkout.
 
 The default CLI handler uses `SafeCliRenderer` (generic message and correlation ID). Choose `PlainTextRenderer` or `ConsoleErrorRenderer` explicitly for diagnostic output; their exception messages are not suitable for untrusted recipients.
+
+Recursive calls to the same `ErrorReporter` within one execution context are ignored while its listeners or filters are running. Separate fibers can report independently.

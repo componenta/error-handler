@@ -10,6 +10,8 @@ use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\Event\ErrorListenerProvider;
 use Throwable;
+use Fiber;
+use WeakMap;
 use Componenta\Error\Internal\FailureLog;
 use Componenta\Error\Internal\ErrorPredicate;
 
@@ -19,6 +21,11 @@ final class ErrorReporter implements ErrorReporterInterface
      * @var list<callable(Throwable, ErrorContextInterface): bool>
      */
     private array $nonReportable = [];
+
+    private bool $reportingOnMain = false;
+
+    /** @var WeakMap<Fiber, true>|null */
+    private ?WeakMap $reportingFibers = null;
 
     public function __construct(
         private readonly ErrorListenerProviderInterface $listeners = new ErrorListenerProvider(),
@@ -40,6 +47,13 @@ final class ErrorReporter implements ErrorReporterInterface
         mixed $result = null,
         ?string $errorId = null,
     ): void {
+        $fiber = Fiber::getCurrent();
+        if (!$this->enter($fiber)) {
+            // Listener-induced recursion is a secondary failure. Do not
+            // dispatch it again or invoke another potentially recursive sink.
+            return;
+        }
+
         try {
             $event = new ErrorEvent(
                 exception: $exception,
@@ -65,6 +79,36 @@ final class ErrorReporter implements ErrorReporterInterface
             }
         } catch (Throwable $providerFailure) {
             $this->handleListenerException($providerFailure);
+        } finally {
+            $this->leave($fiber);
+        }
+    }
+
+    private function enter(?Fiber $fiber): bool
+    {
+        if ($fiber === null) {
+            if ($this->reportingOnMain) {
+                return false;
+            }
+            $this->reportingOnMain = true;
+            return true;
+        }
+
+        $active = $this->reportingFibers ??= new WeakMap();
+        if (isset($active[$fiber])) {
+            return false;
+        }
+        $active[$fiber] = true;
+
+        return true;
+    }
+
+    private function leave(?Fiber $fiber): void
+    {
+        if ($fiber === null) {
+            $this->reportingOnMain = false;
+        } elseif ($this->reportingFibers !== null) {
+            unset($this->reportingFibers[$fiber]);
         }
     }
 
