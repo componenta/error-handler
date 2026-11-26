@@ -198,7 +198,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         $lines = [];
 
         // Exception class
-        $class = $exception::class;
+        $class = \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception::class);
         $lines[] = $this->color($class, self::FG_BRIGHT_YELLOW, self::BOLD);
         $lines[] = '';
 
@@ -229,7 +229,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
             $code = sprintf(
                 '%s Code: %s',
                 self::ICON_INFO,
-                $this->color((string) $exception->getCode(), self::FG_BRIGHT_MAGENTA),
+                $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal((string) $exception->getCode()), self::FG_BRIGHT_MAGENTA),
             );
             $lines[] = $code;
         }
@@ -355,12 +355,12 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         // Function/method call
         $call = '';
         if (isset($frame['class'])) {
-            $class = $this->color($frame['class'], self::FG_BRIGHT_CYAN);
+            $class = $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($frame['class']), self::FG_BRIGHT_CYAN);
             $type = $this->color($frame['type'] ?? '::', self::FG_GRAY);
-            $function = $this->color($frame['function'] ?? '', self::FG_BRIGHT_YELLOW);
+            $function = $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($frame['function'] ?? ''), self::FG_BRIGHT_YELLOW);
             $call = $class . $type . $function;
         } elseif (isset($frame['function'])) {
-            $call = $this->color($frame['function'], self::FG_BRIGHT_YELLOW);
+            $call = $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($frame['function']), self::FG_BRIGHT_YELLOW);
         }
 
         // Arguments summary
@@ -411,7 +411,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
 
         while ($prev !== null && $depth <= $maxDepth) {
             $indent = str_repeat('  ', $depth);
-            $type = $this->color($prev::class, self::FG_YELLOW);
+            $type = $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($prev::class), self::FG_YELLOW);
             $message = $this->truncate(\Componenta\Error\Diagnostic\DiagnosticData::terminal($prev->getMessage()) ?: '(no message)', 60);
 
             $output[] = sprintf(
@@ -574,16 +574,31 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
 
     private function wordWrap(string $text, int $width): string
     {
-        return wordwrap($text, $width, "\n", true);
+        $width = max(1, $width);
+        $lines = [];
+        // Bound per-message work; other diagnostic fields have their own budgets.
+        $text = mb_strcut($text, 0, 16_384, 'UTF-8');
+        foreach (explode("\n", $text) as $line) {
+            while (mb_strlen($line, 'UTF-8') > $width) {
+                $prefix = mb_substr($line, 0, $width, 'UTF-8');
+                $space = mb_strrpos($prefix, ' ', 0, 'UTF-8');
+                $cut = $space !== false && $space > 0 ? $space : $width;
+                $lines[] = mb_substr($line, 0, $cut, 'UTF-8');
+                $line = mb_substr($line, $cut + ($cut !== $width ? 1 : 0), null, 'UTF-8');
+            }
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
     }
 
     private function truncate(string $text, int $maxLength): string
     {
-        if (mb_strlen($text) <= $maxLength) {
+        if (mb_strlen($text, 'UTF-8') <= $maxLength) {
             return $text;
         }
 
-        return mb_substr($text, 0, $maxLength - 3) . '...';
+        return mb_substr($text, 0, $maxLength - 3, 'UTF-8') . '...';
     }
 
     private function shortenPath(string $path): string
@@ -596,11 +611,11 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
 
         foreach ($roots as $root) {
             if ($root && str_starts_with($path, $root . '/')) {
-                return substr($path, strlen($root) + 1);
+                return \Componenta\Error\Diagnostic\DiagnosticData::terminal(substr($path, strlen($root) + 1));
             }
         }
 
-        return $path;
+        return \Componenta\Error\Diagnostic\DiagnosticData::terminal($path);
     }
 
     private function getExceptionType(Throwable $exception): string
@@ -640,7 +655,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     private function getShortClass(string $class): string
     {
         $parts = explode('\\', $class);
-        return end($parts);
+        return \Componenta\Error\Diagnostic\DiagnosticData::terminal(end($parts));
     }
 
     private function formatValue(mixed $value): string

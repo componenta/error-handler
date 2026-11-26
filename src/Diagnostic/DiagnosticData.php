@@ -76,9 +76,15 @@ final class DiagnosticData
         return $value;
     }
 
+    /** Escapes terminal controls while keeping ordinary UTF-8, tabs and newlines. */
     public static function terminal(string $value): string
     {
-        return preg_replace_callback('/[\x00-\x08\x0b-\x1f\x7f]|\xc2[\x80-\x9f]/', static fn (array $m): string =>
-            '\x' . strtoupper(bin2hex($m[0])), $value) ?? '[unavailable]';
+        $value = mb_scrub($value, 'UTF-8');
+
+        return preg_replace_callback(
+            '/[\x{0000}-\x{0008}\x{000b}-\x{001f}\x{007f}-\x{009f}\x{061c}\x{200e}\x{200f}\x{202a}-\x{202e}\x{2066}-\x{2069}]/u',
+            static fn (array $match): string => '\x' . strtoupper(bin2hex($match[0])),
+            $value,
+        ) ?? '[unavailable]';
     }
 }

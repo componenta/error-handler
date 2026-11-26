@@ -42,10 +42,13 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
             $previous = $exception->getPrevious();
             $depth = 1;
 
-            while ($previous !== null) {
+            while ($previous !== null && $depth <= 32) {
                 $output .= "\n" . $this->formatException($previous, $depth);
                 $previous = $previous->getPrevious();
                 $depth++;
+            }
+            if ($previous !== null) {
+                $output .= "\n... additional previous exceptions";
             }
         }
 
@@ -79,7 +82,7 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
                 '%s%s%s: %s',
                 $indent,
                 $prefix,
-                $exception::class,
+                \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception::class),
                 \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception->getMessage()),
             ),
             sprintf(
@@ -94,7 +97,7 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
             $lines[] = '';
             $lines[] = $indent . 'Stack trace:';
 
-            foreach (explode("\n", $exception->getTraceAsString()) as $traceLine) {
+            foreach (explode("\n", \Componenta\Error\Diagnostic\TraceFormatter::format($exception)) as $traceLine) {
                 $lines[] = $indent . '  ' . \Componenta\Error\Diagnostic\DiagnosticData::terminal($traceLine);
             }
         }

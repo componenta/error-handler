@@ -45,7 +45,7 @@ readonly class HtmlRenderer implements HttpErrorRendererInterface
         if ($this->debug) {
             $file = htmlspecialchars($exception->getFile(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
             $line = $exception->getLine();
-            $trace = htmlspecialchars($exception->getTraceAsString(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
+            $trace = htmlspecialchars(\Componenta\Error\Diagnostic\TraceFormatter::format($exception), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
 
             $debug = <<<HTML
             <div class="debug">
