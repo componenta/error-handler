@@ -172,6 +172,19 @@ A global exclusion rule prevents every listener from receiving the event. Indivi
 
 The default reporter continues if a policy fails, uses UTC system time if the injected clock fails, and isolates individual listener failures. ListenerExceptionPolicy::Throw is an explicit direct-reporter option; HTTP/CLI handlers always protect the original error from reporting failures. Recursive dispatch in the same execution context is suppressed; independent fibers can report separately.
 
+### Non-reportable exception classes
+
+```php
+use Componenta\Error\Reporter\Attribute\NonReportable;
+
+#[NonReportable]
+final class ExpectedException extends \RuntimeException
+{
+}
+```
+
+`NonReportableErrors`, the default reporting policy, excludes directly annotated exception classes before evaluating configured rules, querying the listener provider, or reading the clock. The marker is non-repeatable, has no parameters, and is not implicitly inherited. Configured class-name exclusions still match descendants. The marker does not affect rendering, HTTP status, CLI output, or occurrence identity. A custom `ErrorReportingPolicyInterface` implementation may choose different semantics. Use the marker for intrinsically non-reportable failures; use application configuration or predicates for deployment-specific decisions. Do not mark exceptions whose security or operational audit records must be retained.
+
 ## DI Registration
 
 `ConfigProvider` registers the HTTP/CLI handlers, renderers, reporter, and middleware dependencies needed by Componenta applications.
