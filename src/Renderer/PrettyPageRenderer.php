@@ -811,7 +811,6 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             throw new \RuntimeException("Template not found: {$templatePath}");
         }
 
-        $data['e'] = static fn(mixed $value): string => htmlspecialchars(is_scalar($value) ? (string) $value : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $data['dump'] = fn(mixed $value): string => $this->formatValue($value);
 
         return $this->includeTemplate($templatePath, $data);
@@ -822,28 +821,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
      */
     private function includeTemplate(string $templatePath, array $payload): string
     {
-        $render = static function (string $templatePath, array $payload): string {
-            $level = ob_get_level();
-            extract($payload, EXTR_SKIP);
-
-            ob_start();
-
-            try {
-                require $templatePath;
-
-                $output = ob_get_clean();
-
-                return $output === false ? '' : $output;
-            } catch (Throwable $exception) {
-                while (ob_get_level() > $level) {
-                    ob_end_clean();
-                }
-
-                throw $exception;
-            }
-        };
-
-        return $render($templatePath, $payload);
+        return \Componenta\Error\Internal\TemplateOutput::render($templatePath, $payload);
     }
 
     /**

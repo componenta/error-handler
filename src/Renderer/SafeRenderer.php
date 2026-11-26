@@ -115,29 +115,12 @@ readonly class SafeRenderer implements HttpErrorRendererInterface
             return null;
         }
 
-        $render = static function (string $templatePath, array $data): ?string {
-            $level = ob_get_level();
-            $e = static fn(mixed $value): string => htmlspecialchars(is_scalar($value) ? (string) $value : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-
-            extract($data, EXTR_SKIP);
-            ob_start();
-
-            try {
-                require $templatePath;
-
-                $output = ob_get_clean();
-
-                return $output === false ? '' : $output;
-            } catch (Throwable) {
-                while (ob_get_level() > $level) {
-                    ob_end_clean();
-                }
-
-                return null;
-            }
-        };
-
-        return $render($templatePath, $data);
+        try {
+            return \Componenta\Error\Internal\TemplateOutput::render($templatePath, $data);
+        } catch (Throwable $failure) {
+            \Componenta\Error\Internal\FailureLog::write('safe error template', $failure);
+            return null;
+        }
     }
 
     private function fallbackHtml(int $statusCode, string $errorId): string
