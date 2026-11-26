@@ -28,7 +28,7 @@ final class ScopedReporterTest extends TestCase
         $http->addListener(ErrorListener::createFrom(static function () use (&$seen): void { $seen[] = 'http'; }));
         $cli->addListener(ErrorListener::createFrom(static function () use (&$seen): void { $seen[] = 'cli'; }));
         $container = $this->createStub(ContainerInterface::class);
-        $container->method('has')->willReturn(true);
+        $container->method('has')->willReturnCallback(static fn (string $id): bool => in_array($id, [ConfigKey::HTTP_LISTENERS, ConfigKey::CLI_LISTENERS], true));
         $container->method('get')->willReturnMap([
             [ConfigKey::HTTP_LISTENERS, $http],
             [ConfigKey::CLI_LISTENERS, $cli],
