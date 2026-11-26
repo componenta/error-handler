@@ -30,7 +30,7 @@ final readonly class EmergencyHttpResponseGenerator implements HttpErrorResponse
             ->withHeader('X-Content-Type-Options', 'nosniff');
         if (strtoupper($context->request->getMethod()) !== 'HEAD') {
             $id = \Componenta\Error\Internal\ErrorCorrelation::read($context);
-            $response->getBody()->write('An unexpected error occurred' . ($id !== null ? "\nError ID: " . $id : ''));
+            \Componenta\Error\Internal\StreamWriter::write($response->getBody(), 'An unexpected error occurred' . ($id !== null ? "\nError ID: " . $id : ''));
         }
 
         return $response;

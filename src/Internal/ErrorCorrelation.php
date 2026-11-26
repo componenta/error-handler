@@ -53,8 +53,12 @@ final class ErrorCorrelation
 
     public static function read(ErrorContextInterface $context): ?string
     {
-        $id = $context->getAttribute(ErrorContextAttribute::ERROR_ID, null);
-
-        return is_string($id) && self::isValid($id) ? $id : null;
+        try {
+            $id = $context->getAttribute(ErrorContextAttribute::ERROR_ID, null);
+            return is_string($id) && self::isValid($id) ? $id : null;
+        } catch (Throwable $failure) {
+            FailureLog::write('reading error ID', $failure);
+            return null;
+        }
     }
 }

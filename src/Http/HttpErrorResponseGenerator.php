@@ -32,6 +32,9 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
     public function generate(Throwable $exception, HttpErrorContextInterface $context): ResponseInterface
     {
         $statusCode = $this->statusResolver->resolve($exception, $context);
+        if ($statusCode < 400 || $statusCode > 599) {
+            throw new \UnexpectedValueException('An HTTP error status must be between 400 and 599.');
+        }
         $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $statusCode);
         $rendered = $this->renderer instanceof HttpErrorRendererInterface
             ? $this->renderer->renderHttp($exception, $context)
@@ -41,6 +44,11 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
 
         if ($exception instanceof HttpHeadersAwareInterface || $exception instanceof \Componenta\Http\Exception\HttpException) {
             foreach ($exception->headers as $name => $value) {
+                if (strtolower($name) === 'upgrade' && $statusCode === 426
+                    && $context->request->getProtocolVersion() === '1.1') {
+                    $response = $response->withHeader('Upgrade', $value)->withHeader('Connection', 'Upgrade');
+                    continue;
+                }
                 // Representation and transport framing are owned by the generator.
                 if (!in_array(strtolower($name), [
                     'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
@@ -59,7 +67,7 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
             ->withAddedHeader('Vary', 'Accept');
 
         if (strtoupper($context->request->getMethod()) !== 'HEAD') {
-            $response->getBody()->write($rendered->body);
+            \Componenta\Error\Internal\StreamWriter::write($response->getBody(), $rendered->body);
         }
 
         return $response;
