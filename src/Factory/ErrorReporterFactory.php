@@ -4,25 +4,23 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Factory;
 
-use Componenta\Error\ConfigKey;
 use Componenta\Error\Event\ErrorListenerProvider;
 use Componenta\Error\Reporter\ErrorReporter;
 use Psr\Container\ContainerInterface;
 
+/** Builds an isolated reporter; the unscoped reporter has no transport listeners. */
 final readonly class ErrorReporterFactory
 {
+    public function __construct(private ?string $listenerKey = null)
+    {
+    }
+
     public function __invoke(ContainerInterface $container): ErrorReporter
     {
-        $listeners = new ErrorListenerProvider();
+        $provider = $this->listenerKey !== null && $container->has($this->listenerKey)
+            ? $container->get($this->listenerKey)
+            : null;
 
-        if ($container->has(ConfigKey::HTTP_LISTENERS)) {
-            $listeners->merge($container->get(ConfigKey::HTTP_LISTENERS));
-        }
-
-        if ($container->has(ConfigKey::CLI_LISTENERS)) {
-            $listeners->merge($container->get(ConfigKey::CLI_LISTENERS));
-        }
-
-        return new ErrorReporter($listeners);
+        return new ErrorReporter(ErrorListenerProvider::createFrom($provider));
     }
 }

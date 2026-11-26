@@ -14,6 +14,7 @@ use Componenta\Error\Http\EmergencyHttpResponseGenerator;
 use Componenta\Error\Reporter\ErrorReporter;
 use LogicException;
 use Psr\Container\ContainerInterface;
+use Componenta\Config\Config;
 use Psr\Http\Message\ResponseFactoryInterface;
 
 final readonly class HttpErrorHandlerFactory
@@ -22,9 +23,9 @@ final readonly class HttpErrorHandlerFactory
     {
         $reporter = $container->has(ConfigKey::ERROR_REPORTER)
             ? $container->get(ConfigKey::ERROR_REPORTER)
-            : ($container->has(ErrorReporterInterface::class)
-                ? $container->get(ErrorReporterInterface::class)
-                : null);
+            : ($container->has(ConfigKey::HTTP_REPORTER)
+                ? $container->get(ConfigKey::HTTP_REPORTER)
+                : ($container->has(ErrorReporterInterface::class) ? $container->get(ErrorReporterInterface::class) : null));
 
         $errorIdGenerator = $container->has(ConfigKey::ERROR_ID_GENERATOR)
             ? $container->get(ConfigKey::ERROR_ID_GENERATOR)
@@ -48,8 +49,8 @@ final readonly class HttpErrorHandlerFactory
                 $errorIdGenerator,
             );
 
-        $config = $container->get('config');
-        $generators = $config[ConfigKey::HTTP_GENERATORS] ?? [];
+        $config = $container->get(Config::class);
+        $generators = $config->array(ConfigKey::HTTP_GENERATORS, []);
 
         foreach ($generators as $entryId) {
             $self->addGenerator($container->get($entryId));

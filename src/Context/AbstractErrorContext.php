@@ -23,7 +23,7 @@ abstract readonly class AbstractErrorContext implements ErrorContextInterface
      * @param array<string|int, mixed> $attributes Initial context attributes
      */
     public function __construct(
-        public array $attributes = [],
+        private array $attributes = [],
     ) {
     }
 

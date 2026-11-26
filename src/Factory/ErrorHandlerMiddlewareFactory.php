@@ -9,6 +9,7 @@ use Componenta\Error\Handler\HttpErrorHandlerInterface;
 use Componenta\Error\Http\Middleware\ErrorHandlerMiddleware;
 use LogicException;
 use Psr\Container\ContainerInterface;
+use Componenta\Config\Config;
 
 final readonly class ErrorHandlerMiddlewareFactory
 {
@@ -23,8 +24,8 @@ final readonly class ErrorHandlerMiddlewareFactory
 
         $handler = $container->get(HttpErrorHandlerInterface::class);
 
-        $errorLevel = $container->has(ConfigKey::ERROR_LEVEL)
-            ? $container->get(ConfigKey::ERROR_LEVEL)
+        $errorLevel = $container->has(Config::class)
+            ? $container->get(Config::class)->int(ConfigKey::ERROR_LEVEL, E_ALL)
             : E_ALL;
 
         return new ErrorHandlerMiddleware($handler, $errorLevel);

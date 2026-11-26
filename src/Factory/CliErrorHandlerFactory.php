@@ -18,9 +18,9 @@ final readonly class CliErrorHandlerFactory
     {
         $reporter = $container->has(ConfigKey::ERROR_REPORTER)
             ? $container->get(ConfigKey::ERROR_REPORTER)
-            : ($container->has(ErrorReporterInterface::class)
-                ? $container->get(ErrorReporterInterface::class)
-                : null);
+            : ($container->has(ConfigKey::CLI_REPORTER)
+                ? $container->get(ConfigKey::CLI_REPORTER)
+                : ($container->has(ErrorReporterInterface::class) ? $container->get(ErrorReporterInterface::class) : null));
 
         $errorIdGenerator = $container->has(ConfigKey::ERROR_ID_GENERATOR)
             ? $container->get(ConfigKey::ERROR_ID_GENERATOR)

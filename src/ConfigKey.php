@@ -16,6 +16,8 @@ final class ConfigKey extends \Componenta\Config\ConfigKey
     public final const string CLI_LISTENERS = 'error.cli.listeners';
 
     public final const string ERROR_REPORTER = 'error.reporter';
+    public final const string HTTP_REPORTER = 'error.http.reporter';
+    public final const string CLI_REPORTER = 'error.cli.reporter';
     public final const string ERROR_ID_GENERATOR = 'error.id_generator';
     public final const string ERROR_LEVEL = 'error.http.error_level';
 }

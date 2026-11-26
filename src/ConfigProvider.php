@@ -15,6 +15,8 @@ use Componenta\Error\Factory\HttpErrorResponseGeneratorFactory;
 use Componenta\Error\Factory\ErrorIdGeneratorFactory;
 use Componenta\Error\Factory\ErrorHandlerMiddlewareFactory;
 use Componenta\Error\Factory\ErrorReporterFactory;
+use Componenta\Error\Factory\HttpErrorReporterFactory;
+use Componenta\Error\Factory\CliErrorReporterFactory;
 use Componenta\Error\Factory\RenderingCliErrorHandlerFactory;
 use Componenta\Error\Factory\HttpErrorHandlerFactory;
 use Componenta\Error\Factory\HttpListenerProviderFactory;
@@ -37,6 +39,8 @@ class ConfigProvider extends ComponentaProvider
             RenderingCliErrorHandler::class => RenderingCliErrorHandlerFactory::class,
             ErrorHandlerMiddleware::class => ErrorHandlerMiddlewareFactory::class,
             ErrorReporter::class => ErrorReporterFactory::class,
+            ConfigKey::HTTP_REPORTER => HttpErrorReporterFactory::class,
+            ConfigKey::CLI_REPORTER => CliErrorReporterFactory::class,
             RandomErrorIdGenerator::class => ErrorIdGeneratorFactory::class,
             ConfigKey::HTTP_LISTENERS => HttpListenerProviderFactory::class,
             ConfigKey::CLI_LISTENERS => CliListenerProviderFactory::class,
@@ -50,7 +54,6 @@ class ConfigProvider extends ComponentaProvider
             CliErrorHandlerInterface::class => CliErrorHandler::class,
             ErrorReporterInterface::class => ErrorReporter::class,
             ErrorIdGeneratorInterface::class => RandomErrorIdGenerator::class,
-            ConfigKey::ERROR_REPORTER => ErrorReporter::class,
             ConfigKey::ERROR_ID_GENERATOR => RandomErrorIdGenerator::class,
             ConfigKey::HTTP_FALLBACK_GENERATOR => HttpErrorResponseGenerator::class,
             ConfigKey::CLI_FALLBACK_HANDLER => RenderingCliErrorHandler::class,

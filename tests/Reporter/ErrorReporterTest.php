@@ -40,7 +40,8 @@ final class ErrorReporterTest extends TestCase
 
         self::assertCount(1, $receivedEvents);
         self::assertSame($exception, $receivedEvents[0]->exception);
-        self::assertSame($context, $receivedEvents[0]->context);
+        self::assertSame('err-1', $receivedEvents[0]->context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::ERROR_ID));
+        self::assertNull($context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::ERROR_ID, null));
         self::assertSame('handled', $receivedEvents[0]->result);
         self::assertSame('err-1', $receivedEvents[0]->errorId);
     }
