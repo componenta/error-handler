@@ -49,7 +49,9 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
             }
         }
 
-        return $output;
+        $id = \Componenta\Error\Internal\ErrorCorrelation::read($context);
+
+        return $output . ($id !== null ? "\nError ID: " . $id : '');
     }
 
     /**

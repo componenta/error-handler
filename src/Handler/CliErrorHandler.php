@@ -16,6 +16,7 @@ use Componenta\Error\Renderer\PlainTextRenderer;
 use Componenta\Error\Reporter\ErrorReporter;
 use Throwable;
 use Componenta\Error\Internal\FailureLog;
+use Componenta\Error\Internal\ErrorCorrelation;
 use Componenta\Error\Reporter\ListenerExceptionPolicy;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -72,14 +73,7 @@ final class CliErrorHandler implements CliErrorHandlerInterface
 
     public function handle(Throwable $exception, CliErrorContextInterface $context): void
     {
-        $errorId = null;
-        try {
-            $id = $this->errorIdGenerator->generate($exception, $context);
-            $context = $context->withAttribute(ErrorContextAttribute::ERROR_ID, $id);
-            $errorId = $id;
-        } catch (Throwable $failure) {
-            FailureLog::write('error ID', $failure, $exception);
-        }
+        [$context, $errorId] = ErrorCorrelation::assign($exception, $context, $this->errorIdGenerator);
 
         $outputFailed = false;
         try {
@@ -91,7 +85,7 @@ final class CliErrorHandler implements CliErrorHandlerInterface
                 if ($output instanceof ConsoleOutputInterface) {
                     $output = $output->getErrorOutput();
                 }
-                $output->writeln('An unexpected error occurred', OutputInterface::OUTPUT_RAW);
+                $output->writeln('An unexpected error occurred' . ($errorId !== null ? "\nError ID: " . $errorId : ''), OutputInterface::OUTPUT_RAW);
             } catch (Throwable $secondary) {
                 FailureLog::write('emergency CLI output', $secondary, $exception);
                 $outputFailed = true;

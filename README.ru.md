@@ -43,8 +43,7 @@ use Componenta\Error\Http\Middleware\ErrorHandlerMiddleware;
 use Psr\Http\Message\ResponseFactoryInterface;
 
 /** @var ResponseFactoryInterface $responseFactory */
-$fallback = new HttpErrorResponseGenerator($responseFactory);
-$handler = new HttpErrorHandler($fallback);
+$handler = HttpErrorHandler::createDefaults($responseFactory);
 
 $middleware = new ErrorHandlerMiddleware($handler);
 $response = $middleware->process($request, $next);
@@ -84,7 +83,7 @@ final readonly class ValidationErrorResponseGenerator implements HttpErrorRespon
 }
 ```
 
-`HttpErrorResponseGenerator` один раз вычисляет HTTP-статус через `HttpStatusResolver` и записывает его в контекст как `ErrorContextAttribute::HTTP_STATUS_CODE` до рендера. Стандартный resolver использует `HttpStatusAwareInterface`, затем код исключения в диапазоне `400..599`, затем `500`.
+`HttpErrorResponseGenerator` один раз вычисляет HTTP-статус через `HttpStatusResolver` и записывает его в контекст как `ErrorContextAttribute::HTTP_STATUS_CODE` до рендера. Стандартный resolver использует типизированные HTTP-исключения (`HttpStatusAwareInterface` или исключения `componenta/http`), иначе возвращает 500. Числовой код исключения учитывается только при явной настройке `new HttpStatusResolver(useExceptionCode: true)`.
 
 ## CLI
 
@@ -153,12 +152,15 @@ $context = HttpContext::fromGlobals($serverRequestCreator);
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
 
-$handler->addListener(
+$listeners = new \Componenta\Error\Event\ErrorListenerProvider();
+$listeners->addListener(
     ErrorListener::createFrom(static function (ErrorEventInterface $event): void {
         // log or report $event->exception and $event->context
     }),
     priority: 100,
 );
+$reporter = new \Componenta\Error\Reporter\ErrorReporter($listeners);
+$handler = HttpErrorHandler::createDefaults($responseFactory, reporter: $reporter);
 ```
 
 Отдельные исключения можно исключить из отчётов по имени класса или predicate-функции.
@@ -180,8 +182,17 @@ $handler->addListener(
 | `ConfigKey::CLI_FALLBACK_HANDLER` | Резервный CLI-рендерер или обработчик. |
 | `ConfigKey::CLI_RENDERER` | CLI-рендерер. |
 | `ConfigKey::CLI_LISTENERS` | CLI-слушатели ошибок. |
-| `ConfigKey::ERROR_REPORTER` | Сервис отчёта об ошибках. |
+| `ConfigKey::HTTP_REPORTER` / `CLI_REPORTER` | Независимые сервисы отчёта по типу транспорта. |
+| `ConfigKey::ERROR_REPORTER` | Явное переопределение общим репортёром. |
 | `ConfigKey::ERROR_ID_GENERATOR` | Сервис генератора идентификатора ошибки. |
 | `ConfigKey::ERROR_LEVEL` | Уровень ошибок, который обрабатывает `ErrorHandlerMiddleware`. |
 
 Если `ConfigKey::HTTP_FALLBACK_GENERATOR` не настроен, стандартный HTTP-обработчик требует `Psr\Http\Message\ResponseFactoryInterface` в контейнере.
+
+## Переход на версию 2
+
+Требуются Config 4 и PHP 8.4+. Регистрируйте слушателей в `ErrorListenerProvider`, фильтры исключений — в `ErrorReporter`, а не в обработчиках. Атрибуты контекста доступны только через контракт контекста. HTTP-рендереры реализуют `HttpErrorRendererInterface::renderHttp()` и возвращают `RenderedError` с телом и типом содержимого. Строковый рендерер трактуется как plain text; для явного типа используйте `FixedMediaTypeRenderer`. Числовой код исключения больше не определяет статус неявно. Обработчики изолируют ошибки репортёра и используют независимый аварийный генератор при наличии PSR-17 фабрики. ID ошибки содержит 128 бит случайной энтропии; HTTP-ответ передаёт ID в `X-Error-ID`. Отладочные рендереры могут раскрывать сообщения исключений и исходный код: в production используйте SafeRenderer. Не публикуйте HTML-журналы. Настраивайте обработчики и слушателей до выполнения запросов. Middleware восстанавливает состояние PHP-обработчика ошибок, но не перехватывает аварийное завершение процесса и не гарантирует изоляцию при пересекающемся выполнении Fiber.
+
+## Проверки
+
+`composer test` — unit-тесты Pest, `composer phpstan` — статический анализ, `composer benchmark` — PHPBench. Интеграция с DI 6 требует PHP 8.5: установите `composer require --dev 'componenta/di:^6.0@dev'` и выполните `composer test:integration`. CI также проверяет пять адаптеров рендеринга с текущей версией ядра.

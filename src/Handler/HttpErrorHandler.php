@@ -20,6 +20,7 @@ use Psr\Http\Message\ResponseInterface;
 use Throwable;
 use Componenta\Error\Http\EmergencyHttpResponseGenerator;
 use Componenta\Error\Internal\FailureLog;
+use Componenta\Error\Internal\ErrorCorrelation;
 use Componenta\Error\Reporter\ListenerExceptionPolicy;
 
 final class HttpErrorHandler implements HttpErrorHandlerInterface
@@ -77,14 +78,7 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
 
     public function handle(Throwable $exception, HttpErrorContextInterface $context): ResponseInterface
     {
-        $errorId = null;
-        try {
-            $id = $this->errorIdGenerator->generate($exception, $context);
-            $context = $context->withAttribute(ErrorContextAttribute::ERROR_ID, $id);
-            $errorId = $id;
-        } catch (Throwable $failure) {
-            FailureLog::write('error ID', $failure, $exception);
-        }
+        [$context, $errorId] = ErrorCorrelation::assign($exception, $context, $this->errorIdGenerator);
 
         $selected = null;
         try {
@@ -108,6 +102,15 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
                 }
                 throw $exception;
             }
+        }
+
+        try {
+            $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $response->getStatusCode());
+            if ($errorId !== null) {
+                $response = $response->withHeader('X-Error-ID', $errorId);
+            }
+        } catch (Throwable $failure) {
+            FailureLog::write('HTTP error metadata', $failure, $exception);
         }
 
         try {

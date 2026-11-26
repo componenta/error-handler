@@ -30,7 +30,7 @@ final class ErrorHandlingFailureTest extends TestCase
         $reported = [];
         $listeners = new \Componenta\Error\Event\ErrorListenerProvider();
         $listeners->addListener(ErrorListener::createFrom(static function (ErrorEventInterface $event) use (&$reported): void {
-            $reported[] = $event->exception;
+            $reported[] = $event;
         }));
 
         $reporter = new ErrorReporter($listeners);
@@ -39,8 +39,13 @@ final class ErrorHandlingFailureTest extends TestCase
         $response = $handler->handle($original, new HttpContext(new ServerRequest('GET', '/')));
 
         self::assertSame(500, $response->getStatusCode());
-        self::assertSame('An unexpected error occurred', (string) $response->getBody());
-        self::assertSame([$original], $reported);
+        self::assertCount(1, $reported);
+        self::assertSame($original, $reported[0]->exception);
+        $errorId = $reported[0]->errorId;
+        self::assertIsString($errorId);
+        self::assertMatchesRegularExpression('/^ERR-[0-9A-F]{32}-[0-9]+$/', $errorId);
+        self::assertSame("An unexpected error occurred\nError ID: " . $errorId, (string) $response->getBody());
+        self::assertSame($errorId, $response->getHeaderLine('X-Error-ID'));
     }
 
     public function testCustomReporterCannotReplaceResponse(): void

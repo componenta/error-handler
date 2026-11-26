@@ -29,7 +29,8 @@ final readonly class EmergencyHttpResponseGenerator implements HttpErrorResponse
             ->withHeader('Cache-Control', 'no-store')
             ->withHeader('X-Content-Type-Options', 'nosniff');
         if (strtoupper($context->request->getMethod()) !== 'HEAD') {
-            $response->getBody()->write('An unexpected error occurred');
+            $id = \Componenta\Error\Internal\ErrorCorrelation::read($context);
+            $response->getBody()->write('An unexpected error occurred' . ($id !== null ? "\nError ID: " . $id : ''));
         }
 
         return $response;

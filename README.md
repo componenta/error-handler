@@ -43,8 +43,7 @@ use Componenta\Error\Http\Middleware\ErrorHandlerMiddleware;
 use Psr\Http\Message\ResponseFactoryInterface;
 
 /** @var ResponseFactoryInterface $responseFactory */
-$fallback = new HttpErrorResponseGenerator($responseFactory);
-$handler = new HttpErrorHandler($fallback);
+$handler = HttpErrorHandler::createDefaults($responseFactory);
 
 $middleware = new ErrorHandlerMiddleware($handler);
 $response = $middleware->process($request, $next);
@@ -84,7 +83,7 @@ final readonly class ValidationErrorResponseGenerator implements HttpErrorRespon
 }
 ```
 
-`HttpErrorResponseGenerator` resolves the response status once through `HttpStatusResolver` and writes it to the context as `ErrorContextAttribute::HTTP_STATUS_CODE` before rendering. The default resolver uses `HttpStatusAwareInterface`, then an exception code in the `400..599` range, then `500`.
+`HttpErrorResponseGenerator` resolves the response status once through `HttpStatusResolver` and writes it to the context as `ErrorContextAttribute::HTTP_STATUS_CODE` before rendering. The default resolver uses typed HTTP exceptions (`HttpStatusAwareInterface` or `componenta/http` exceptions) and otherwise returns 500. Numeric exception codes are opt-in with `new HttpStatusResolver(useExceptionCode: true)`.
 
 ## CLI Usage
 
@@ -153,12 +152,15 @@ Register listeners for logging or monitoring:
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
 
-$handler->addListener(
+$listeners = new \Componenta\Error\Event\ErrorListenerProvider();
+$listeners->addListener(
     ErrorListener::createFrom(static function (ErrorEventInterface $event): void {
         // log or report $event->exception and $event->context
     }),
     priority: 100,
 );
+$reporter = new \Componenta\Error\Reporter\ErrorReporter($listeners);
+$handler = HttpErrorHandler::createDefaults($responseFactory, reporter: $reporter);
 ```
 
 Specific exceptions can be excluded from reporting by class name or predicate.
@@ -180,8 +182,17 @@ Important config keys:
 | `ConfigKey::CLI_FALLBACK_HANDLER` | CLI fallback renderer/handler. |
 | `ConfigKey::CLI_RENDERER` | CLI renderer. |
 | `ConfigKey::CLI_LISTENERS` | CLI error listeners. |
-| `ConfigKey::ERROR_REPORTER` | Reporter service. |
+| `ConfigKey::HTTP_REPORTER` / `CLI_REPORTER` | Independent transport-specific reporters. |
+| `ConfigKey::ERROR_REPORTER` | Explicit shared reporter override. |
 | `ConfigKey::ERROR_ID_GENERATOR` | Error id generator service. |
 | `ConfigKey::ERROR_LEVEL` | Error level handled by `ErrorHandlerMiddleware`. |
 
 If no `ConfigKey::HTTP_FALLBACK_GENERATOR` is configured, the default HTTP handler requires `Psr\Http\Message\ResponseFactoryInterface` in the container.
+
+## Version 2 migration
+
+Requires Config 4 and PHP 8.4 or later. Register listeners on `ErrorListenerProvider` and exclusion predicates on `ErrorReporter`, rather than on handlers. Context attributes are accessible only through the context contract. HTTP renderers implement `HttpErrorRendererInterface::renderHttp()` and return `RenderedError` containing the body and media type. String-only renderers are treated as plain text; use `FixedMediaTypeRenderer` to declare a fixed type. Typed HTTP exceptions replace implicit numeric code mapping. The default handlers isolate reporting failures and use an independent emergency response when a PSR-17 factory is available. Error IDs have 128 bits of random entropy; HTTP responses expose the correlation ID via `X-Error-ID`. Development renderers can expose confidential exception messages or source; use SafeRenderer in production. Never expose HTML log snapshots publicly. Configure handlers and listeners before handling requests, not during requests. Middleware restores PHP error-handler state but cannot intercept fatal process termination or guarantee isolation between overlapping fiber executions.
+
+## Verification
+
+`composer test` runs unit tests with Pest. `composer phpstan` runs static analysis. `composer benchmark` runs PHPBench. The integration suite requires DI 6 (PHP 8.5); install it separately with `composer require --dev 'componenta/di:^6.0@dev'`, then run `composer test:integration`. The CI matrix also tests the five renderer adapters against the same core checkout.

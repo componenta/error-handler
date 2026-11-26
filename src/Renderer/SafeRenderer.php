@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Throwable;
+use Componenta\Error\Internal\ErrorCorrelation;
+use Componenta\Error\ErrorId\RandomErrorIdGenerator;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
@@ -48,8 +50,7 @@ readonly class SafeRenderer implements HttpErrorRendererInterface
             return $this->renderHttp($exception, $context)->body;
         }
 
-        $errorId = $context->getAttribute(ErrorContextAttribute::ERROR_ID, null);
-        $errorId = is_string($errorId) ? $errorId : $this->generateErrorId();
+        $errorId = $this->resolveErrorId($exception, $context);
         $statusCode = $this->getStatusCode($context);
 
         return $this->renderHtml($errorId, $statusCode);
@@ -159,14 +160,15 @@ readonly class SafeRenderer implements HttpErrorRendererInterface
     /**
      * Generate unique error ID
      */
-    private function generateErrorId(): string
+    private function resolveErrorId(Throwable $exception, ErrorContextInterface $context): string
     {
-        return sprintf(
-            '%s-%s-%d',
-            $this->errorIdPrefix,
-            strtoupper(bin2hex(random_bytes(16))),
-            time(),
-        );
+        if (array_key_exists(ErrorContextAttribute::ERROR_ID, $context->getAttributes())) {
+            return ErrorCorrelation::read($context) ?? 'unavailable';
+        }
+
+        [, $id] = ErrorCorrelation::assign($exception, $context, new RandomErrorIdGenerator($this->errorIdPrefix));
+
+        return $id ?? 'unavailable';
     }
 
     /**
@@ -181,8 +183,7 @@ readonly class SafeRenderer implements HttpErrorRendererInterface
 
     public function renderHttp(Throwable $exception, HttpErrorContextInterface $context): RenderedError
     {
-        $errorId = $context->getAttribute(ErrorContextAttribute::ERROR_ID, null);
-        $errorId = is_string($errorId) ? $errorId : $this->generateErrorId();
+        $errorId = $this->resolveErrorId($exception, $context);
         $statusCode = $this->getStatusCode($context);
 
         if (\Componenta\Error\Http\ErrorContentNegotiator::prefersJson($context->request->getHeaderLine('Accept'))) {
