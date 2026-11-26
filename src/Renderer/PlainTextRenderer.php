@@ -78,12 +78,12 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
                 $indent,
                 $prefix,
                 $exception::class,
-                $exception->getMessage(),
+                \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception->getMessage()),
             ),
             sprintf(
                 '%s  in %s:%d',
                 $indent,
-                $exception->getFile(),
+                \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception->getFile()),
                 $exception->getLine(),
             ),
         ];
@@ -93,7 +93,7 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
             $lines[] = $indent . 'Stack trace:';
 
             foreach (explode("\n", $exception->getTraceAsString()) as $traceLine) {
-                $lines[] = $indent . '  ' . $traceLine;
+                $lines[] = $indent . '  ' . \Componenta\Error\Diagnostic\DiagnosticData::terminal($traceLine);
             }
         }
 

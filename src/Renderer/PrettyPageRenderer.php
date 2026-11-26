@@ -113,7 +113,12 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         private readonly int $maxStringLength = self::DEFAULT_MAX_STRING_LENGTH,
         private readonly int $maxArrayDepth = self::DEFAULT_MAX_ARRAY_DEPTH,
         private readonly int $maxBodyLength = self::DEFAULT_MAX_BODY_LENGTH,
+        private readonly bool $captureJsonBody = false,
     ) {
+        if (($maxFrames !== null && $maxFrames < 1) || ($maxExceptions !== null && $maxExceptions < 1)
+            || $maxStringLength < 1 || $maxArrayDepth < 0 || $maxBodyLength < 1 || $maxBodyLength > 1_048_576) {
+            throw new \InvalidArgumentException('Invalid diagnostic limits.');
+        }
         $this->basePaths = $this->initBasePaths();
     }
 
@@ -162,6 +167,10 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             throw new \InvalidArgumentException('PrettyPageRenderer requires HTTP error context.');
         }
 
+        if (!$this->debug) {
+            return (new SafeRenderer())->render($exception, $context);
+        }
+
         // Prepare template payload
         $payload = $this->buildPayload($exception, $context);
 
@@ -204,9 +213,9 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             // Request data
             'request' => [
                 'method' => $request->getMethod(),
-                'uri' => (string) $request->getUri(),
+                'uri' => (string) $request->getUri()->withUserInfo('')->withQuery('')->withFragment(''),
                 'path' => $request->getUri()->getPath(),
-                'query' => $request->getUri()->getQuery(),
+                'query' => '',
                 'ip' => $serverParams['REMOTE_ADDR']
                     ?? $request->getHeaderLine('X-Forwarded-For')
                         ?? 'unknown',
@@ -214,19 +223,19 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             ],
 
             // GET parameters
-            'getData' => $request->getQueryParams(),
+            'getData' => \Componenta\Error\Diagnostic\DiagnosticData::sanitize($request->getQueryParams()),
 
             // POST parameters
-            'postData' => $request->getParsedBody(),
+            'postData' => \Componenta\Error\Diagnostic\DiagnosticData::sanitize($request->getParsedBody()),
 
             // Cookies
-            'cookies' => $request->getCookieParams(),
+            'cookies' => array_fill_keys(array_keys($request->getCookieParams()), \Componenta\Error\Diagnostic\DiagnosticData::REDACTED),
 
             // Uploaded files
             'files' => $this->formatUploadedFiles($request->getUploadedFiles()),
 
             // Raw body
-            'rawBody' => $this->getRawBody($request),
+            'rawBody' => $this->captureJsonBody ? $this->getRawBody($request) : null,
 
             // Headers
             'headers' => $this->flattenHeaders($request->getHeaders()),
@@ -484,12 +493,16 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
                 $name = $property->getName();
 
                 // Skip standard properties
-                if (in_array($name, $standardProps, true)) {
+                if (in_array($name, $standardProps, true) || $property->isStatic() || $property->isVirtual()) {
                     continue;
                 }
 
                 try {
-                    $value = $property->getValue($exception);
+                    if (\Componenta\Error\Diagnostic\DiagnosticData::isSensitiveKey($name)) {
+                        $arguments[$name] = ['type' => 'redacted', 'value' => \Componenta\Error\Diagnostic\DiagnosticData::REDACTED];
+                        continue;
+                    }
+                    $value = $property->getRawValue($exception);
 
                     $arguments[$name] = [
                         'type' => $this->getValueType($value),
@@ -522,7 +535,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         foreach ($args as $arg) {
             $formatted[] = [
                 'type' => $this->getValueType($arg),
-                'value' => $this->formatValue($arg),
+                'value' => \Componenta\Error\Diagnostic\DiagnosticData::REDACTED,
             ];
         }
 
@@ -597,7 +610,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         }
 
         $count = count($value);
-        $isAssoc = array_keys($value) !== range(0, $count - 1);
+        $isAssoc = !array_is_list($value);
         $items = [];
         $shown = 0;
         $maxItems = 10;
@@ -608,7 +621,8 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
                 break;
             }
 
-            $formattedValue = $this->formatValue($v, $depth + 1);
+            $formattedValue = \Componenta\Error\Diagnostic\DiagnosticData::isSensitiveKey($k)
+                ? \Componenta\Error\Diagnostic\DiagnosticData::REDACTED : $this->formatValue($v, $depth + 1);
 
             if ($isAssoc) {
                 $items[] = (is_string($k) ? '"' . $k . '"' : $k) . ' => ' . $formattedValue;
@@ -627,55 +641,9 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
      */
     private function formatObject(object $value, int $depth): string
     {
-        $class = $value::class;
-        $shortClass = $this->getShortClassName($class);
-
-        // Special handling for common types
-        if ($value instanceof \DateTimeInterface) {
-            return $shortClass . '("' . $value->format('Y-m-d H:i:s') . '")';
-        }
-
-        if ($value instanceof \Closure) {
-            return 'Closure';
-        }
-
-        if ($value instanceof \Stringable) {
-            try {
-                $str = (string) $value;
-                return $shortClass . '(' . $this->formatString($str) . ')';
-            } catch (\Throwable) {
-                // Ignore
-            }
-        }
-
-        if ($depth >= $this->maxArrayDepth) {
-            return $shortClass . '{...}';
-        }
-
-        // Get public properties
-        try {
-            $props = get_object_vars($value);
-            if (empty($props)) {
-                return $shortClass . '{}';
-            }
-
-            $items = [];
-            $shown = 0;
-            $maxItems = 5;
-
-            foreach ($props as $k => $v) {
-                if ($shown >= $maxItems) {
-                    $items[] = '...';
-                    break;
-                }
-                $items[] = $k . ': ' . $this->formatValue($v, $depth + 1);
-                $shown++;
-            }
-
-            return $shortClass . '{' . implode(', ', $items) . '}';
-        } catch (\Throwable) {
-            return $shortClass . '{?}';
-        }
+        return $value instanceof \SensitiveParameterValue
+            ? \Componenta\Error\Diagnostic\DiagnosticData::REDACTED
+            : $this->getShortClassName($value::class) . '{...}';
     }
 
     /**
@@ -735,37 +703,37 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
     private function getRawBody(ServerRequestInterface $request): ?array
     {
         $body = $request->getBody();
-
-        if (!$body->isReadable() || !$body->isSeekable()) {
-            return null;
-        }
-
+        $position = null;
         try {
-            $originalPosition = $body->tell();
-            $body->rewind();
-
-            $content = $body->read($this->maxBodyLength + 1);
-            $size = $body->getSize() ?? strlen($content);
-            $truncated = strlen($content) > $this->maxBodyLength;
-
-            if ($truncated) {
-                $content = substr($content, 0, $this->maxBodyLength);
-            }
-
-            // Restore original position
-            $body->seek($originalPosition);
-
-            if (empty(trim($content))) {
+            $type = strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0]));
+            if ($type !== 'application/json' || !$body->isReadable() || !$body->isSeekable()) {
                 return null;
             }
-
+            $position = $body->tell();
+            $body->rewind();
+            $content = $body->read($this->maxBodyLength + 1);
+            if (strlen($content) > $this->maxBodyLength || !$body->eof()) {
+                return null;
+            }
+            $data = json_decode($content, true, 32, JSON_THROW_ON_ERROR);
+            if (!is_array($data)) {
+                return null;
+            }
             return [
-                'content' => $content,
-                'truncated' => $truncated,
-                'size' => $size,
+                'content' => json_encode(\Componenta\Error\Diagnostic\DiagnosticData::sanitize($data), JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+                'truncated' => false,
+                'size' => strlen($content),
             ];
         } catch (\Throwable) {
             return null;
+        } finally {
+            if ($position !== null) {
+                try {
+                    $body->seek($position);
+                } catch (\Throwable $failure) {
+                    \Componenta\Error\Internal\FailureLog::write('diagnostic stream restoration', $failure);
+                }
+            }
         }
     }
 
@@ -776,38 +744,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
      */
     private function getCodeSnippet(string $file, int $errorLine): ?array
     {
-        if (!is_readable($file)) {
-            return null;
-        }
-
-        try {
-            $fileObj = new \SplFileObject($file);
-            $fileObj->setFlags(\SplFileObject::DROP_NEW_LINE);
-
-            // Get total lines by seeking to end
-            $fileObj->seek(PHP_INT_MAX);
-            $totalLines = $fileObj->key() + 1;
-
-            $startLine = max(1, $errorLine - self::CONTEXT_LINES);
-            $endLine = min($totalLines, $errorLine + self::CONTEXT_LINES);
-
-            // Seek to start line (0-indexed)
-            $fileObj->seek($startLine - 1);
-
-            $snippet = [];
-            for ($i = $startLine; $i <= $endLine && !$fileObj->eof(); $i++) {
-                $snippet[] = $fileObj->current();
-                $fileObj->next();
-            }
-
-            return [
-                'startLine' => $startLine,
-                'errorLine' => $errorLine,
-                'lines' => $snippet,
-            ];
-        } catch (\Throwable) {
-            return null;
-        }
+        return \Componenta\Error\Diagnostic\SourceExcerpt::read($file, $errorLine, self::CONTEXT_LINES);
     }
 
     /**
@@ -818,10 +755,14 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
      */
     private function flattenHeaders(array $headers): array
     {
-        $flat = array_map(function ($values) {
-            return implode(', ', $values);
-        }, $headers);
-        return $flat;
+        $result = [];
+        foreach (array_slice($headers, 0, 100, true) as $name => $values) {
+            // Only recognized non-credential headers expose their values.
+            $result[$name] = in_array(strtolower($name), ['accept', 'accept-language', 'content-type', 'content-length', 'host', 'user-agent'], true)
+                ? mb_strcut(implode(', ', $values), 0, 4096, 'UTF-8')
+                : \Componenta\Error\Diagnostic\DiagnosticData::REDACTED;
+        }
+        return $result;
     }
 
     /**
@@ -1012,6 +953,8 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
 
     public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
     {
-        return new RenderedError($this->render($exception, $context), 'text/html; charset=utf-8');
+        return !$this->debug
+            ? (new SafeRenderer())->renderHttp($exception, $context)
+            : new RenderedError($this->render($exception, $context), 'text/html; charset=utf-8');
     }
 }

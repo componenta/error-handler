@@ -30,7 +30,7 @@ use Throwable;
  * }
  * ```
  */
-final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
+final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
 {
     // ═══════════════════════════════════════════════════════════════════════════
     // ANSI Codes
@@ -220,7 +220,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
         $lines[] = '';
 
         // Message (wrapped)
-        $message = $exception->getMessage() ?: '(no message)';
+        $message = \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception->getMessage() ?: '(no message)');
         $wrappedMessage = $this->wordWrap($message, $innerWidth);
         foreach (explode("\n", $wrappedMessage) as $msgLine) {
             $lines[] = $this->color($msgLine, self::FG_WHITE);
@@ -256,17 +256,14 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
 
     private function renderCodePreview(string $file, int $errorLine, int $width): string
     {
-        if (!is_readable($file)) {
+        $excerpt = \Componenta\Error\Diagnostic\SourceExcerpt::read($file, $errorLine, $this->contextLines);
+        if ($excerpt === null) {
             return '';
         }
 
-        $lines = file($file);
-        if ($lines === false) {
-            return '';
-        }
-
-        $start = max(1, $errorLine - $this->contextLines);
-        $end = min(count($lines), $errorLine + $this->contextLines);
+        $lines = $excerpt['lines'];
+        $start = $excerpt['startLine'];
+        $end = $start + count($lines) - 1;
 
         $output = [];
         $maxLineNum = strlen((string) $end);
@@ -284,7 +281,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
 
         // Code lines
         for ($i = $start; $i <= $end; $i++) {
-            $lineContent = rtrim($lines[$i - 1] ?? '', "\r\n");
+            $lineContent = \Componenta\Error\Diagnostic\DiagnosticData::terminal(rtrim($lines[$i - $start] ?? '', "\r\n"));
             $lineNum = str_pad((string) $i, $maxLineNum, ' ', STR_PAD_LEFT);
             $isErrorLine = ($i === $errorLine);
 
@@ -431,7 +428,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
         while ($prev !== null && $depth <= $maxDepth) {
             $indent = str_repeat('  ', $depth);
             $type = $this->color($prev::class, self::FG_YELLOW);
-            $message = $this->truncate($prev->getMessage() ?: '(no message)', 60);
+            $message = $this->truncate(\Componenta\Error\Diagnostic\DiagnosticData::terminal($prev->getMessage()) ?: '(no message)', 60);
 
             $output[] = sprintf(
                 '%s%s %s: %s',
@@ -489,14 +486,14 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
                     $output[] = sprintf(
                         '    %s Command: %s',
                         self::ICON_DOT,
-                        $this->color($firstArg, self::FG_CYAN),
+                        $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($firstArg), self::FG_CYAN),
                     );
                 }
             }
 
             // Arguments
             if (method_exists($input, 'getArguments')) {
-                $args = $input->getArguments();
+                $args = \Componenta\Error\Diagnostic\DiagnosticData::sanitize($input->getArguments());
                 if (!empty($args)) {
                     $output[] = sprintf(
                         '    %s Arguments: %s',
@@ -511,7 +508,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
 
             // Options
             if (method_exists($input, 'getOptions')) {
-                $options = $input->getOptions();
+                $options = \Componenta\Error\Diagnostic\DiagnosticData::sanitize($input->getOptions());
                 if (!empty($options)) {
                     $filteredOptions = array_filter($options, fn($v) => $v !== false && $v !== null && $v !== []);
                     if (!empty($filteredOptions)) {
@@ -529,7 +526,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
         }
 
         // Custom attributes
-        $attributes = $context->getAttributes();
+        $attributes = \Componenta\Error\Diagnostic\DiagnosticData::sanitize($context->getAttributes());
         if (!empty($attributes)) {
             $output[] = '';
             $output[] = $this->color('  Attributes:', self::FG_GREEN, self::BOLD);
@@ -538,7 +535,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
                     '    %s %s: %s',
                     self::ICON_DOT,
                     $this->color((string) $key, self::FG_CYAN),
-                    $this->color($this->formatValue($value), self::FG_WHITE),
+                    $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($this->formatValue($value)), self::FG_WHITE),
                 );
             }
         }
@@ -756,7 +753,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
     private function getWidth(): int
     {
         if ($this->terminalWidth > 0) {
-            return $this->terminalWidth;
+            return max(20, min(200, $this->terminalWidth));
         }
 
         return self::detectTerminalWidth();
@@ -764,26 +761,10 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
 
     private static function detectTerminalWidth(): int
     {
-        // Try tput
-        if (function_exists('exec')) {
-            $width = trim((string) @exec('tput cols 2>/dev/null'));
-            if (is_numeric($width) && (int) $width > 0) {
-                return min((int) $width, 200);
-            }
-        }
-
-        // Try stty
-        if (function_exists('exec')) {
-            $output = @exec('stty size 2>/dev/null');
-            if ($output && preg_match('/\d+\s+(\d+)/', $output, $matches)) {
-                return min((int) $matches[1], 200);
-            }
-        }
-
         // Environment variable
         $columns = getenv('COLUMNS');
         if ($columns !== false && is_numeric($columns)) {
-            return min((int) $columns, 200);
+            return max(20, min((int) $columns, 200));
         }
 
         return self::DEFAULT_WIDTH;
@@ -801,7 +782,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
             return getenv('ANSICON') !== false ||
                 getenv('ConEmuANSI') === 'ON' ||
                 getenv('TERM') === 'xterm' ||
-                (function_exists('sapi_windows_vt100_support') && @sapi_windows_vt100_support(STDOUT));
+                (defined('STDOUT') && function_exists('sapi_windows_vt100_support') && @sapi_windows_vt100_support(STDOUT));
         }
 
         // TERM check
@@ -811,7 +792,7 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
         }
 
         // TTY check
-        return function_exists('posix_isatty') && @posix_isatty(STDOUT);
+        return defined('STDOUT') && function_exists('posix_isatty') && @posix_isatty(STDOUT);
     }
 
     public function supports(Throwable $exception, ErrorContextInterface $context): bool
@@ -819,8 +800,4 @@ final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
         return $context instanceof CliErrorContextInterface;
     }
 
-    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
-    {
-        return new RenderedError($this->render($exception, $context), 'text/plain; charset=utf-8');
-    }
 }

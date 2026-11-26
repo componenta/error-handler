@@ -54,10 +54,6 @@ if (!$debug): ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $e($exception['class']) ?> — <?= $e($applicationName) ?></title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/<?= $e($theme['highlightCss']) ?>">
     <style>
         :root {
             --bg: <?= $e($theme['bg']) ?>;
@@ -524,7 +520,7 @@ if (!$debug): ?>
                     
                     <?php if ($searchProviders): ?>
                     <div class="search-buttons" id="search-buttons">
-                        <?php $searchQuery = urlencode($exception['shortClass'] . ' ' . $exception['message']); ?>
+                        <?php $searchQuery = urlencode($exception['shortClass']); ?>
                         <?php foreach ($searchProviders as $provider): ?>
                         <a href="<?= $e(sprintf($provider['url'], $searchQuery)) ?>" 
                            target="_blank" 
@@ -867,8 +863,6 @@ if (!$debug): ?>
         </main>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/php.min.js"></script>
     <script>
     (function() {
         // Exception chain data for header and arguments updates
@@ -956,7 +950,7 @@ if (!$debug): ?>
         
         // Update search buttons URLs
         function updateSearchButtons(exc) {
-            const query = encodeURIComponent(exc.shortClass + ' ' + exc.message);
+            const query = encodeURIComponent(exc.shortClass);
             const buttons = document.querySelectorAll('.search-btn');
             buttons.forEach(function(btn) {
                 const urlTemplate = btn.getAttribute('data-url-template');
@@ -966,10 +960,6 @@ if (!$debug): ?>
             });
         }
 
-        // Highlight all code blocks
-        document.querySelectorAll('code.language-php').forEach(function(block) {
-            hljs.highlightElement(block);
-        });
 
         // Main tab switching
         document.querySelectorAll('.main-tab').forEach(function(tab) {
