@@ -8,6 +8,7 @@ use Componenta\Error\ConfigKey;
 use Componenta\Error\Http\HttpErrorResponseGenerator;
 use LogicException;
 use Psr\Container\ContainerInterface;
+use Componenta\Error\Internal\TypedService;
 use Psr\Http\Message\ResponseFactoryInterface;
 
 final readonly class HttpErrorResponseGeneratorFactory
@@ -21,10 +22,10 @@ final readonly class HttpErrorResponseGeneratorFactory
             ));
         }
 
-        $responseFactory = $container->get(ResponseFactoryInterface::class);
+        $responseFactory = TypedService::get($container, ResponseFactoryInterface::class, ResponseFactoryInterface::class);
 
         $renderer = $container->has(ConfigKey::HTTP_RENDERER)
-            ? $container->get(ConfigKey::HTTP_RENDERER)
+            ? TypedService::get($container, ConfigKey::HTTP_RENDERER, \Componenta\Error\Renderer\ErrorRendererInterface::class)
             : null;
 
         return $renderer === null

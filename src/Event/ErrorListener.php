@@ -20,12 +20,12 @@ use Componenta\Error\Event\ErrorListenerInterface;
 final readonly class ErrorListener implements ErrorListenerInterface
 {
     /**
-     * @var callable(ErrorEventInterface): void
+     * @var Closure(ErrorEventInterface): void
      */
     private Closure $callback;
 
     /**
-     * @var callable(Throwable, ErrorContextInterface): bool|null
+     * @var (Closure(Throwable, ErrorContextInterface): bool)|null
      */
     private ?Closure $supports;
 

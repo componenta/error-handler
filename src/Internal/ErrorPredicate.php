@@ -12,11 +12,14 @@ use Throwable;
 /** @internal Converts all supported filter forms to a single typed predicate. */
 final class ErrorPredicate
 {
-    /** @return Closure(Throwable, ErrorContextInterface): bool */
+    /**
+     * @param class-string<Throwable>|list<class-string<Throwable>>|callable(Throwable, ErrorContextInterface): bool $filter
+     * @return Closure(Throwable, ErrorContextInterface): bool
+     */
     public static function normalize(string|array|callable $filter): Closure
     {
         if (is_callable($filter)) {
-            return Closure::fromCallable($filter);
+            return static fn (Throwable $error, ErrorContextInterface $context): bool => $filter($error, $context);
         }
 
         $classes = is_string($filter) ? [$filter] : $filter;
@@ -26,6 +29,6 @@ final class ErrorPredicate
         }
 
         return static fn (Throwable $error, ErrorContextInterface $context): bool =>
-            array_any($classes, static fn (string $class): bool => $error instanceof $class);
+            array_any($classes, static fn (mixed $class): bool => is_string($class) && $error instanceof $class);
     }
 }

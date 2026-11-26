@@ -29,7 +29,7 @@ final class ErrorListenerProvider implements ErrorListenerProviderInterface
      * Returns existing provider or creates new empty one.
      *
      * @param ErrorListenerProviderInterface|null $provider Optional provider
-     * @return ErrorListenerProviderInterface Provider instance
+     * @return self Provider instance
      */
     public static function createFrom(?ErrorListenerProviderInterface $provider): self
     {
