@@ -82,7 +82,7 @@ readonly class PlainTextRenderer implements ErrorRendererInterface
                 $indent,
                 $prefix,
                 \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception::class),
-                \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception->getMessage()),
+                \Componenta\Error\Diagnostic\DiagnosticData::terminal(\Componenta\Error\Diagnostic\DiagnosticData::boundedText($exception->getMessage())),
             ),
             sprintf(
                 '%s  in %s:%d',

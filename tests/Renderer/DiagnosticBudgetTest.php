@@ -65,6 +65,36 @@ final class DiagnosticBudgetTest extends TestCase
         }
     }
 
+    public function testDiagnosticJsonBoundsTraceAndMessage(): void
+    {
+        $exception = $this->deepException(140);
+        self::assertGreaterThan(100, count($exception->getTrace()));
+        $renderer = new \Componenta\Error\Renderer\JsonRenderer(debug: true);
+        $result = $renderer->render(new ErrorOccurrence($exception, 'ERR-json'), new HttpContext(new ServerRequest('GET', '/')));
+        $error = json_decode($result->content, true, flags: JSON_THROW_ON_ERROR)['error'];
+        self::assertCount(100, $error['trace']);
+        self::assertSame(count($exception->getTrace()) - 100, $error['trace_omitted']);
+        self::assertLessThanOrEqual(16_384, strlen($error['message']));
+        self::assertStringEndsWith('...', $error['message']);
+    }
+
+    public function testLongMessagesAreBoundedBeforeHtmlAndTextFormatting(): void
+    {
+        $error = new ErrorOccurrence(new RuntimeException(str_repeat('x', 100_000) . 'tail-marker'), 'ERR-long');
+        $context = new HttpContext(new ServerRequest('GET', '/'));
+        foreach ([new \Componenta\Error\Renderer\HtmlRenderer(), new \Componenta\Error\Renderer\PlainTextRenderer()] as $renderer) {
+            $content = $renderer->render($error, $context)->content;
+            self::assertLessThan(25_000, strlen($content));
+            self::assertStringNotContainsString('tail-marker', $content);
+            self::assertStringContainsString(str_repeat('x', 100), $content);
+        }
+    }
+
+    private function deepException(int $depth): RuntimeException
+    {
+        return $depth > 0 ? $this->deepException($depth - 1) : new RuntimeException(str_repeat('x', 50_000));
+    }
+
     #[\PHPUnit\Framework\Attributes\DataProvider('eofModes')]
     public function testChunkedDiagnosticReadRestoresPositionAndRedactsSecrets(bool $delayedEof): void
     {

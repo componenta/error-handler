@@ -41,7 +41,7 @@ readonly class JsonRenderer implements ErrorRendererInterface
             'error' => [
                 'type' => $exception::class,
                 'code' => $exception->getCode(),
-                'message' => $exception->getMessage(),
+                'message' => \Componenta\Error\Diagnostic\DiagnosticData::boundedText($exception->getMessage()),
             ],
         ];
 
@@ -49,6 +49,10 @@ readonly class JsonRenderer implements ErrorRendererInterface
             $data['error']['file'] = $exception->getFile();
             $data['error']['line'] = $exception->getLine();
             $data['error']['trace'] = $this->formatTrace($exception);
+            $omitted = count($exception->getTrace()) - count($data['error']['trace']);
+            if ($omitted > 0) {
+                $data['error']['trace_omitted'] = $omitted;
+            }
 
             if ($previous = $exception->getPrevious()) {
                 $data['error']['previous'] = $this->formatPrevious($previous);
@@ -87,7 +91,7 @@ readonly class JsonRenderer implements ErrorRendererInterface
                 'class' => $frame['class'] ?? null,
                 'type' => $frame['type'] ?? null,
             ],
-            $exception->getTrace(),
+            array_slice($exception->getTrace(), 0, 100),
         );
     }
 
@@ -103,7 +107,7 @@ readonly class JsonRenderer implements ErrorRendererInterface
             $chain[] = [
                 'type' => $exception::class,
                 'code' => $exception->getCode(),
-                'message' => $exception->getMessage(),
+                'message' => \Componenta\Error\Diagnostic\DiagnosticData::boundedText($exception->getMessage()),
                 'file' => $exception->getFile(),
                 'line' => $exception->getLine(),
             ];

@@ -198,7 +198,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         $lines[] = '';
 
         // Message (wrapped)
-        $message = \Componenta\Error\Diagnostic\DiagnosticData::terminal($exception->getMessage() ?: '(no message)');
+        $message = \Componenta\Error\Diagnostic\DiagnosticData::terminal(\Componenta\Error\Diagnostic\DiagnosticData::boundedText($exception->getMessage()) ?: '(no message)');
         $wrappedMessage = $this->wordWrap($message, $innerWidth);
         foreach (explode("\n", $wrappedMessage) as $msgLine) {
             $lines[] = $this->color($msgLine, self::FG_WHITE);
@@ -361,7 +361,10 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         // Arguments summary
         $args = '';
         if (!empty($frame['args'])) {
-            $argTypes = array_map(fn($arg) => $this->getArgType($arg), $frame['args']);
+            $argTypes = array_map(fn($arg) => $this->getArgType($arg), array_slice($frame['args'], 0, 64));
+            if (count($frame['args']) > 64) {
+                $argTypes[] = '...';
+            }
             $args = $this->color('(' . implode(', ', $argTypes) . ')', self::FG_GRAY);
         } else {
             $args = $this->color('()', self::FG_GRAY);
@@ -407,7 +410,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         while ($prev !== null && $depth <= $maxDepth) {
             $indent = str_repeat('  ', $depth);
             $type = $this->color(\Componenta\Error\Diagnostic\DiagnosticData::terminal($prev::class), self::FG_YELLOW);
-            $message = $this->truncate(\Componenta\Error\Diagnostic\DiagnosticData::terminal($prev->getMessage()) ?: '(no message)', 60);
+            $message = $this->truncate(\Componenta\Error\Diagnostic\DiagnosticData::terminal(\Componenta\Error\Diagnostic\DiagnosticData::boundedText($prev->getMessage())) ?: '(no message)', 60);
 
             $output[] = sprintf(
                 '%s%s %s: %s',
