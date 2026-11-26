@@ -38,11 +38,16 @@ readonly class RenderingCliErrorHandler implements CliErrorHandlerInterface
         ErrorOccurrence $error,
         CliErrorContextInterface $context,
     ): void {
+        $content = $this->render($error, $context)->content;
+        if ($content === '') {
+            return;
+        }
+
         $output = $context->output;
         if ($output instanceof ConsoleOutputInterface) {
             $output = $output->getErrorOutput();
         }
-        $output->writeln((string) $this->render($error, $context), OutputInterface::OUTPUT_RAW);
+        $output->writeln($content, OutputInterface::OUTPUT_RAW);
     }
 
     /**

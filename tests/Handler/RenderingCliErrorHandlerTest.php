@@ -32,6 +32,36 @@ final class RenderingCliErrorHandlerTest extends TestCase
         self::assertStringContainsString('error output', $output->fetch());
     }
 
+    public function testNullRendererLeavesOutputUntouchedAndStillAllowsReporting(): void
+    {
+        $output = new BufferedOutput();
+        $output->write('existing');
+        $context = new CliContext(new ArrayInput([]), $output);
+        $error = new ErrorOccurrence(new RuntimeException(), 'ERR-silent');
+        $reporter = $this->createMock(\Componenta\Error\Reporter\ErrorReporterInterface::class);
+        $reporter->expects(self::once())->method('report')->with(self::identicalTo($error), self::identicalTo($context));
+        $handler = \Componenta\Error\Handler\CliErrorHandler::createDefaults(
+            new \Componenta\Error\Renderer\NullRenderer(),
+            $reporter,
+        );
+
+        $handler->handle($error, $context);
+
+        self::assertSame('existing', $output->fetch());
+    }
+
+    public function testZeroContentIsNotMistakenForEmptyOutput(): void
+    {
+        $output = new BufferedOutput();
+        $handler = new RenderingCliErrorHandler(new ErrorRendererStub('0'));
+        $handler->handle(
+            new ErrorOccurrence(new RuntimeException(), 'ERR-zero'),
+            new CliContext(new ArrayInput([]), $output),
+        );
+
+        self::assertSame('0' . PHP_EOL, $output->fetch());
+    }
+
     public function testSupportsOnlyCliContext(): void
     {
         $handler = new RenderingCliErrorHandler();
