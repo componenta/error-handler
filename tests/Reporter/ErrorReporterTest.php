@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Reporter;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
 use Componenta\Error\Event\ErrorListenerProvider;
 use Componenta\Error\Reporter\ErrorReporter;
+use Componenta\Error\Reporter\Policy\NonReportableErrors;
 use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\TestDox;
@@ -25,34 +27,31 @@ final class ErrorReporterTest extends TestCase
     public function testReportDispatchesEventToListeners(): void
     {
         $receivedEvents = [];
-        $listeners = new ErrorListenerProvider();
-        $listeners->addListener(ErrorListener::createFrom(
+        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$receivedEvents): void {
                 $receivedEvents[] = $event;
             },
-        ));
+        )]);
 
         $reporter = new ErrorReporter($listeners);
         $exception = new RuntimeException('test');
         $context = $this->context();
 
-        $reporter->report($exception, $context, errorId: 'err-1');
+        $occurrence = new ErrorOccurrence($exception, 'err-1');
+        $reporter->report($occurrence, $context);
 
         self::assertCount(1, $receivedEvents);
-        self::assertSame($exception, $receivedEvents[0]->exception);
-        self::assertSame('err-1', $receivedEvents[0]->context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::ERROR_ID));
-        self::assertNull($context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::ERROR_ID, null));
-        self::assertSame('err-1', $receivedEvents[0]->errorId);
+        self::assertSame($occurrence, $receivedEvents[0]->error);
+        self::assertSame($context, $receivedEvents[0]->context);
+        self::assertSame('err-1', $receivedEvents[0]->error->id);
     }
 
     public function testReportSkipsWhenStringFilterMatches(): void
     {
         $reported = [];
-        $reporter = $this->reporter($reported);
-
-        $reporter->addNonReportableError(RuntimeException::class);
-        $reporter->report(new RuntimeException(), $this->context());
-        $reporter->report($shouldReport = new InvalidArgumentException(), $this->context());
+        $reporter = $this->reporter($reported, new NonReportableErrors([RuntimeException::class]));
+        $reporter->report(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $this->context());
+        $reporter->report(new ErrorOccurrence($shouldReport = new InvalidArgumentException(), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -60,12 +59,10 @@ final class ErrorReporterTest extends TestCase
     public function testReportSkipsWhenArrayFilterMatches(): void
     {
         $reported = [];
-        $reporter = $this->reporter($reported);
-
-        $reporter->addNonReportableError([RuntimeException::class, InvalidArgumentException::class]);
-        $reporter->report(new RuntimeException(), $this->context());
-        $reporter->report(new InvalidArgumentException(), $this->context());
-        $reporter->report($shouldReport = new LogicException(), $this->context());
+        $reporter = $this->reporter($reported, new NonReportableErrors([[RuntimeException::class, InvalidArgumentException::class]]));
+        $reporter->report(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $this->context());
+        $reporter->report(new ErrorOccurrence(new InvalidArgumentException(), 'ERR-test'), $this->context());
+        $reporter->report(new ErrorOccurrence($shouldReport = new LogicException(), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -73,14 +70,10 @@ final class ErrorReporterTest extends TestCase
     public function testReportSkipsWhenCallableFilterReturnsTrue(): void
     {
         $reported = [];
-        $reporter = $this->reporter($reported);
-
-        $reporter->addNonReportableError(
-            static fn(Throwable $e, ErrorContextInterface $c): bool => $e->getCode() < 500,
-        );
-        $reporter->report(new RuntimeException('client error', 400), $this->context());
-        $reporter->report(new RuntimeException('not found', 404), $this->context());
-        $reporter->report($shouldReport = new RuntimeException('server error', 500), $this->context());
+        $reporter = $this->reporter($reported, new NonReportableErrors([static fn(ErrorOccurrence $e, ErrorContextInterface $c): bool => $e->exception->getCode() < 500]));
+        $reporter->report(new ErrorOccurrence(new RuntimeException('client error', 400), 'ERR-test'), $this->context());
+        $reporter->report(new ErrorOccurrence(new RuntimeException('not found', 404), 'ERR-test'), $this->context());
+        $reporter->report(new ErrorOccurrence($shouldReport = new RuntimeException('server error', 500), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -88,16 +81,15 @@ final class ErrorReporterTest extends TestCase
     /**
      * @param list<Throwable> $reported
      */
-    private function reporter(array &$reported): ErrorReporter
+    private function reporter(array &$reported, NonReportableErrors $policy): ErrorReporter
     {
-        $listeners = new ErrorListenerProvider();
-        $listeners->addListener(ErrorListener::createFrom(
+        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
-                $reported[] = $event->exception;
+                $reported[] = $event->error->exception;
             },
-        ));
+        )]);
 
-        return new ErrorReporter($listeners);
+        return new ErrorReporter($listeners, $policy);
     }
 
     private function context(): CliContext

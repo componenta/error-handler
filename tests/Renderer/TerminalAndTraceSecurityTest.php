@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Diagnostic\DiagnosticData;
@@ -32,7 +33,7 @@ final class TerminalAndTraceSecurityTest extends TestCase
     {
         $message = str_repeat("\u{0416}\u{044f}\u{1f642}", 30);
         $renderer = new ConsoleErrorRenderer(debug: false, colors: false, terminalWidth: 25);
-        $result = $renderer->render(new RuntimeException($message))->content;
+        $result = $renderer->render(new ErrorOccurrence(new RuntimeException($message), 'ERR-test'), \Componenta\Error\Context\CliContext::fromArgv())->content;
 
         self::assertTrue(mb_check_encoding($result, 'UTF-8'));
         self::assertSame(30, substr_count($result, "\u{1f642}"));
@@ -49,8 +50,8 @@ final class TerminalAndTraceSecurityTest extends TestCase
 
             $cli = new CliContext(new ArrayInput([]), new BufferedOutput());
             $http = new HttpContext(new ServerRequest('GET', '/'));
-            $plain = (new PlainTextRenderer(debug: true))->render($error, $cli)->content;
-            $html = (new HtmlRenderer(debug: true))->render($error, $http)->content;
+            $plain = (new PlainTextRenderer(debug: true))->render(new ErrorOccurrence($error, 'ERR-test'), $cli)->content;
+            $html = (new HtmlRenderer(debug: true))->render(new ErrorOccurrence($error, 'ERR-test'), $http)->content;
 
             self::assertStringContainsString('capture()', $plain);
             self::assertStringNotContainsString($secret, $plain);

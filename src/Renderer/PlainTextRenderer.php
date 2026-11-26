@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Throwable;
 
 /**
@@ -29,12 +30,13 @@ readonly class PlainTextRenderer implements ErrorRendererInterface
     /**
      * Render exception as plain text
      *
-     * @param Throwable $exception Exception to render
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
+        $exception = $error->exception;
         $output = $this->formatException($exception, 0);
 
         if ($this->includePrevious) {
@@ -51,19 +53,17 @@ readonly class PlainTextRenderer implements ErrorRendererInterface
             }
         }
 
-        $id = \Componenta\Error\Internal\ErrorCorrelation::read($context);
-
-        return new RenderedError($output . ($id !== null ? "\nError ID: " . $id : ''), 'text/plain; charset=utf-8');
+        return new RenderedError($output . "\nError ID: " . $error->id, 'text/plain; charset=utf-8');
     }
 
     /**
      * Check if renderer supports the exception
      *
-     * @param Throwable $exception Exception to check
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return bool Always returns true
      */
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return true;
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Http;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Http\HttpStatusResolver;
 use Nyholm\Psr7\ServerRequest;
@@ -43,7 +44,7 @@ final class HttpStatusResolverTest extends TestCase
             ->withHeader('Content-Type', 'application/octet-stream')
             ->withHeader('Cache-Control', 'public');
         $response = (new \Componenta\Error\Http\HttpErrorResponseGenerator(new \Nyholm\Psr7\Factory\Psr17Factory()))
-            ->generate($error, new HttpContext(new ServerRequest('GET', '/')));
+            ->generate(new ErrorOccurrence($error, 'ERR-test'), new HttpContext(new ServerRequest('GET', '/')));
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('Bearer realm="api"', $response->getHeaderLine('WWW-Authenticate'));
         self::assertSame('text/html; charset=utf-8', $response->getHeaderLine('Content-Type'));

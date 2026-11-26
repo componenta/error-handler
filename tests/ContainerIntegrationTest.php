@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Config\ConfigFactory;
 use Componenta\Config\Environment;
 use Componenta\DI\ContainerFactory;
@@ -24,7 +25,7 @@ final class ContainerIntegrationTest extends TestCase
         $output = new BufferedOutput();
 
         $container->get(CliErrorHandlerInterface::class)->handle(
-            new RuntimeException('configuration compatibility failure'),
+            new ErrorOccurrence(new RuntimeException('configuration compatibility failure'), 'ERR-test'),
             new CliContext(new ArrayInput([]), $output),
         );
 

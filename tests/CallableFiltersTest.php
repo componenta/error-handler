@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
 use Componenta\Error\Reporter\ErrorReporter;
+use Componenta\Error\Reporter\Policy\NonReportableErrors;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -18,23 +20,23 @@ use Throwable;
 
 final class CallableErrorFilter
 {
-    public static function accepts(Throwable $error, ErrorContextInterface $context): bool
+    public static function accepts(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
-        return $error->getCode() === $context->getAttribute('filteredCode');
+        return $error->exception->getCode() === $context->getAttribute('filteredCode');
     }
 
-    public function matches(Throwable $error, ErrorContextInterface $context): bool
+    public function matches(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return self::accepts($error, $context);
     }
 
-    public function __invoke(Throwable $error, ErrorContextInterface $context): bool
+    public function __invoke(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return self::accepts($error, $context);
     }
 }
 
-function callableErrorPredicate(Throwable $error, ErrorContextInterface $context): bool
+function callableErrorPredicate(ErrorOccurrence $error, ErrorContextInterface $context): bool
 {
     return CallableErrorFilter::accepts($error, $context);
 }
@@ -49,16 +51,14 @@ final class CallableFiltersTest extends TestCase
             'filteredCode' => $suppress ? 400 : 500,
         ]);
         $events = [];
-        $listeners = new \Componenta\Error\Event\ErrorListenerProvider();
-        $listeners->addListener(ErrorListener::createFrom(
+        $listeners = new \Componenta\Error\Event\ErrorListenerProvider([ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$events): void {
-                $events[] = $event->exception;
+                $events[] = $event->error->exception;
             },
-        ));
-        $reporter = new ErrorReporter($listeners);
-        $reporter->addNonReportableError(self::predicate($form));
+        )]);
+        $reporter = new ErrorReporter($listeners, new NonReportableErrors([self::predicate($form)]));
 
-        $reporter->report($error, $context);
+        $reporter->report(new ErrorOccurrence($error, 'ERR-test'), $context);
 
         self::assertSame($suppress ? [] : [$error], $events);
     }
@@ -73,7 +73,7 @@ final class CallableFiltersTest extends TestCase
         $listener = ErrorListener::createFrom(static function (): void {
         }, self::predicate($form));
 
-        self::assertSame($supports, $listener->supports($error, $context));
+        self::assertSame($supports, $listener->supports(new ErrorOccurrence($error, 'ERR-test'), $context));
     }
 
     /** @return iterable<string, array{string, bool}> */
@@ -85,7 +85,7 @@ final class CallableFiltersTest extends TestCase
         }
     }
 
-    /** @return callable(Throwable, ErrorContextInterface): bool */
+    /** @return callable(ErrorOccurrence, ErrorContextInterface): bool */
     private static function predicate(string $form): callable
     {
         return match ($form) {

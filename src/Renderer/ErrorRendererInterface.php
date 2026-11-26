@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\SupportsErrorInterface;
-use Throwable;
 
 /**
  * Interface for exception renderers
@@ -19,9 +19,9 @@ interface ErrorRendererInterface extends SupportsErrorInterface
     /**
      * Render the exception
      *
-     * @param Throwable $exception Exception to render
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError;
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError;
 }

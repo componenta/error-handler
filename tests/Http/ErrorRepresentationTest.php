@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Http;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Http\HttpErrorResponseGenerator;
 use Componenta\Error\Renderer\HtmlRenderer;
@@ -22,7 +23,7 @@ final class ErrorRepresentationTest extends TestCase
     public function testNegotiation(string $accept, string $contentType): void
     {
         $response = (new HttpErrorResponseGenerator(new Psr17Factory(), new SafeRenderer()))
-            ->generate(new RuntimeException(), new HttpContext(new ServerRequest('GET', '/', ['Accept' => $accept])));
+            ->generate(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), new HttpContext(new ServerRequest('GET', '/', ['Accept' => $accept])));
 
         self::assertSame($contentType . '; charset=utf-8', $response->getHeaderLine('Content-Type'));
         self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
@@ -57,9 +58,9 @@ final class ErrorRepresentationTest extends TestCase
         $error = new RuntimeException('failure');
         $html = new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'text/html']));
         $json = new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json']));
-        self::assertSame('application/json; charset=utf-8', (new HttpErrorResponseGenerator($factory, new JsonRenderer()))->generate($error, $html)->getHeaderLine('Content-Type'));
-        self::assertSame('text/html; charset=utf-8', (new HttpErrorResponseGenerator($factory, new HtmlRenderer()))->generate($error, $json)->getHeaderLine('Content-Type'));
-        self::assertSame('text/plain; charset=utf-8', (new HttpErrorResponseGenerator($factory, new ErrorRendererStub('test')))->generate($error, $json)->getHeaderLine('Content-Type'));
-        self::assertSame('', (string) (new HttpErrorResponseGenerator($factory))->generate($error, new HttpContext(new ServerRequest('HEAD', '/')))->getBody());
+        self::assertSame('application/json; charset=utf-8', (new HttpErrorResponseGenerator($factory, new JsonRenderer()))->generate(new ErrorOccurrence($error, 'ERR-test'), $html)->getHeaderLine('Content-Type'));
+        self::assertSame('text/html; charset=utf-8', (new HttpErrorResponseGenerator($factory, new HtmlRenderer()))->generate(new ErrorOccurrence($error, 'ERR-test'), $json)->getHeaderLine('Content-Type'));
+        self::assertSame('text/plain; charset=utf-8', (new HttpErrorResponseGenerator($factory, new ErrorRendererStub('test')))->generate(new ErrorOccurrence($error, 'ERR-test'), $json)->getHeaderLine('Content-Type'));
+        self::assertSame('', (string) (new HttpErrorResponseGenerator($factory))->generate(new ErrorOccurrence($error, 'ERR-test'), new HttpContext(new ServerRequest('HEAD', '/')))->getBody());
     }
 }

@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Componenta\Error\Factory;
 
 use Componenta\Error\ConfigKey;
-use Componenta\Error\ErrorId\ErrorIdGeneratorInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Reporter\ErrorReporterInterface;
-use Componenta\Error\ErrorId\RandomErrorIdGenerator;
 use Componenta\Error\Handler\HttpErrorHandler;
 use Componenta\Error\Http\EmergencyHttpResponseGenerator;
 use Componenta\Error\Reporter\ErrorReporter;
@@ -22,23 +20,14 @@ final readonly class HttpErrorHandlerFactory
 {
     public function __invoke(ContainerInterface $container): HttpErrorHandler
     {
-        $reporter = $container->has(ConfigKey::ERROR_REPORTER)
-            ? TypedService::get($container, ConfigKey::ERROR_REPORTER, ErrorReporterInterface::class)
-            : ($container->has(ConfigKey::HTTP_REPORTER)
-                ? TypedService::get($container, ConfigKey::HTTP_REPORTER, ErrorReporterInterface::class)
-                : ($container->has(ErrorReporterInterface::class) ? TypedService::get($container, ErrorReporterInterface::class, ErrorReporterInterface::class) : null));
-
-        $errorIdGenerator = $container->has(ConfigKey::ERROR_ID_GENERATOR)
-            ? TypedService::get($container, ConfigKey::ERROR_ID_GENERATOR, ErrorIdGeneratorInterface::class)
-            : ($container->has(ErrorIdGeneratorInterface::class)
-                ? TypedService::get($container, ErrorIdGeneratorInterface::class, ErrorIdGeneratorInterface::class)
-                : null);
+        $reporter = $container->has(ErrorReporterInterface::class)
+            ? TypedService::get($container, ErrorReporterInterface::class, ErrorReporterInterface::class)
+            : new ErrorReporter();
 
         $self = $container->has(ConfigKey::HTTP_FALLBACK_GENERATOR)
             ? new HttpErrorHandler(
                 TypedService::get($container, ConfigKey::HTTP_FALLBACK_GENERATOR, \Componenta\Error\Http\HttpErrorResponseGeneratorInterface::class),
-                $reporter ?? new ErrorReporter(),
-                $errorIdGenerator ?? new RandomErrorIdGenerator(),
+                $reporter,
                 emergencyGenerator: $container->has(ResponseFactoryInterface::class)
                     ? new EmergencyHttpResponseGenerator(TypedService::get($container, ResponseFactoryInterface::class, ResponseFactoryInterface::class))
                     : null,
@@ -47,7 +36,6 @@ final readonly class HttpErrorHandlerFactory
                 $container,
                 $container->has(ConfigKey::HTTP_RENDERER) ? TypedService::get($container, ConfigKey::HTTP_RENDERER, \Componenta\Error\Renderer\ErrorRendererInterface::class) : null,
                 $reporter,
-                $errorIdGenerator,
             );
 
         $config = TypedService::get($container, Config::class, Config::class);
@@ -63,8 +51,7 @@ final readonly class HttpErrorHandlerFactory
     private function createDefaultHandler(
         ContainerInterface $container,
         ?ErrorRendererInterface $renderer,
-        ?ErrorReporterInterface $reporter,
-        ?ErrorIdGeneratorInterface $errorIdGenerator,
+        ErrorReporterInterface $reporter,
     ): HttpErrorHandler {
         if (!$container->has(ResponseFactoryInterface::class)) {
             throw new LogicException(sprintf(
@@ -78,7 +65,6 @@ final readonly class HttpErrorHandlerFactory
             TypedService::get($container, ResponseFactoryInterface::class, ResponseFactoryInterface::class),
             $renderer,
             $reporter,
-            $errorIdGenerator,
         );
     }
 }

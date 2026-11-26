@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Throwable;
 
@@ -25,7 +26,7 @@ use Throwable;
  * try {
  *     // your code
  * } catch (Throwable $e) {
- *     echo $renderer->render($e, CliContext::fromArgv());
+ *     echo $renderer->render((new ErrorOccurrenceFactory())->create($e), CliContext::fromArgv());
  * }
  * ```
  */
@@ -127,8 +128,9 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     // Main render method
     // ═══════════════════════════════════════════════════════════════════════════
 
-    public function render(Throwable $exception, ?ErrorContextInterface $context = null): RenderedError
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
+        $exception = $error->exception;
         $width = $this->getWidth();
         $output = [];
 
@@ -169,7 +171,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
             }
         }
 
-        return new RenderedError(implode("\n", $output), 'text/plain; charset=utf-8');
+        return new RenderedError(implode("\n", $output) . "\nError ID: " . $error->id, 'text/plain; charset=utf-8');
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -776,7 +778,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         return defined('STDOUT') && function_exists('posix_isatty') && @posix_isatty(STDOUT);
     }
 
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return $context instanceof CliErrorContextInterface;
     }

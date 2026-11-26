@@ -4,26 +4,23 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Reporter;
 
+use Componenta\Error\Clock\UtcClock;
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Event\ErrorListenerProviderInterface;
-use Componenta\Error\Reporter\ErrorReporterInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\Event\ErrorListenerProvider;
-use Throwable;
-use Psr\Clock\ClockInterface;
-use Componenta\Error\Clock\UtcClock;
-use Fiber;
-use WeakMap;
+use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Internal\FailureLog;
-use Componenta\Error\Internal\ErrorPredicate;
+use Componenta\Error\Reporter\Policy\ErrorReportingPolicyInterface;
+use Componenta\Error\Reporter\Policy\NonReportableErrors;
+use DateTimeImmutable;
+use Fiber;
+use Psr\Clock\ClockInterface;
+use Throwable;
+use WeakMap;
 
 final class ErrorReporter implements ErrorReporterInterface
 {
-    /**
-     * @var list<callable(Throwable, ErrorContextInterface): bool>
-     */
-    private array $nonReportable = [];
-
     private bool $reportingOnMain = false;
 
     /** @var WeakMap<object, true>|null */
@@ -31,58 +28,61 @@ final class ErrorReporter implements ErrorReporterInterface
 
     public function __construct(
         private readonly ErrorListenerProviderInterface $listeners = new ErrorListenerProvider(),
-        private readonly ListenerExceptionPolicy $listenerExceptionPolicy = ListenerExceptionPolicy::Swallow,
+        private readonly ErrorReportingPolicyInterface $policy = new NonReportableErrors(),
         private readonly ClockInterface $clock = new UtcClock(),
+        private readonly ListenerExceptionPolicy $listenerExceptionPolicy = ListenerExceptionPolicy::Swallow,
     ) {
     }
 
-    /**
-     * @param class-string<Throwable>|list<class-string<Throwable>>|callable(Throwable, ErrorContextInterface): bool $filter
-     */
-    public function addNonReportableError(string|array|callable $filter): void
+    public function report(ErrorOccurrence $error, ErrorContextInterface $context): void
     {
-        $this->nonReportable[] = ErrorPredicate::normalize($filter);
-    }
-
-    public function report(
-        Throwable $exception,
-        ErrorContextInterface $context,
-        ?string $errorId = null,
-    ): void {
         $fiber = Fiber::getCurrent();
         if (!$this->enter($fiber)) {
-            // Listener-induced recursion is a secondary failure. Do not
-            // dispatch it again or invoke another potentially recursive sink.
             return;
         }
 
         try {
-            $event = new ErrorEvent(
-                exception: $exception,
-                context: $context,
-                timestamp: $this->clock->now(),
-                errorId: $errorId,
-            );
-            $context = $event->context;
-            if ($this->shouldNotReport($exception, $context)) {
-                return;
+            try {
+                if (!$this->policy->shouldReport($error, $context)) {
+                    return;
+                }
+            } catch (Throwable $failure) {
+                // A broken exclusion rule must not silently discard the error.
+                FailureLog::write('reporting policy', $failure, $error->exception);
             }
+
+            $event = new ErrorEvent($error, $context, $this->timestamp($error));
 
             foreach ($this->listeners->getListeners() as $listener) {
                 try {
-                    if (!$listener->supports($exception, $context)) {
-                        continue;
+                    if ($listener->supports($error, $context)) {
+                        $listener->handleEvent($event);
                     }
-
-                    $listener->handleEvent($event);
-                } catch (Throwable $listenerException) {
-                    $this->handleListenerException($listenerException);
+                } catch (Throwable $failure) {
+                    if ($this->listenerExceptionPolicy === ListenerExceptionPolicy::Throw) {
+                        throw $failure;
+                    }
+                    FailureLog::write('error listener', $failure, $error->exception);
                 }
             }
-        } catch (Throwable $providerFailure) {
-            $this->handleListenerException($providerFailure);
+        } catch (Throwable $failure) {
+            if ($this->listenerExceptionPolicy === ListenerExceptionPolicy::Throw) {
+                throw $failure;
+            }
+            FailureLog::write('reporting', $failure, $error->exception);
         } finally {
             $this->leave($fiber);
+        }
+    }
+
+    private function timestamp(ErrorOccurrence $error): DateTimeImmutable
+    {
+        try {
+            return $this->clock->now();
+        } catch (Throwable $failure) {
+            FailureLog::write('reporting clock', $failure, $error->exception);
+
+            return (new UtcClock())->now();
         }
     }
 
@@ -112,28 +112,5 @@ final class ErrorReporter implements ErrorReporterInterface
         } elseif ($this->reportingFibers !== null) {
             unset($this->reportingFibers[$fiber]);
         }
-    }
-
-    private function shouldNotReport(Throwable $exception, ErrorContextInterface $context): bool
-    {
-        foreach ($this->nonReportable as $filter) {
-            try {
-                if ($filter($exception, $context)) {
-                    return true;
-                }
-            } catch (Throwable $failure) {
-                $this->handleListenerException($failure);
-            }
-        }
-        return false;
-    }
-
-    private function handleListenerException(Throwable $exception): void
-    {
-        if ($this->listenerExceptionPolicy === ListenerExceptionPolicy::Throw) {
-            throw $exception;
-        }
-
-        FailureLog::write('listener or filter', $exception);
     }
 }

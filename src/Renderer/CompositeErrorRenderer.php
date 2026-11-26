@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
-use Throwable;
+use Componenta\Error\ErrorOccurrence;
 
 /**
  * Composite error renderer with priority-based selection
@@ -57,13 +57,13 @@ final class CompositeErrorRenderer implements ErrorRendererInterface
     /**
      * Render exception using first supporting renderer
      *
-     * @param Throwable $exception Exception to render
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
-        return $this->getRenderer($exception, $context)->render($exception, $context);
+        return $this->getRenderer($error, $context)->render($error, $context);
     }
 
     /**
@@ -71,11 +71,11 @@ final class CompositeErrorRenderer implements ErrorRendererInterface
      *
      * Always returns true as it has a fallback renderer.
      *
-     * @param Throwable $exception Exception to check
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return bool Always returns true
      */
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return true;
     }
@@ -83,16 +83,16 @@ final class CompositeErrorRenderer implements ErrorRendererInterface
     /**
      * Get renderer that supports the exception
      *
-     * @param Throwable $exception Exception to find renderer for
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return ErrorRendererInterface Supporting renderer
      */
-    private function getRenderer(Throwable $exception, ErrorContextInterface $context): ErrorRendererInterface
+    private function getRenderer(ErrorOccurrence $error, ErrorContextInterface $context): ErrorRendererInterface
     {
         $this->sortRenderers();
 
         foreach ($this->renderers as ['renderer' => $renderer]) {
-            if ($renderer->supports($exception, $context)) {
+            if ($renderer->supports($error, $context)) {
                 return $renderer;
             }
         }

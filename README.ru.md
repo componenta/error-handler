@@ -63,6 +63,7 @@ $handler->addGenerator(new ValidationGenerator($responseFactory), priority: 50);
 ```php
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Http\HttpErrorResponseGeneratorInterface;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
@@ -70,13 +71,13 @@ use Throwable;
 
 final readonly class ValidationErrorResponseGenerator implements HttpErrorResponseGeneratorInterface
 {
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return $context instanceof HttpErrorContextInterface
-            && $exception instanceof InvalidArgumentException;
+            && $error->exception instanceof InvalidArgumentException;
     }
 
-    public function generate(Throwable $exception, HttpErrorContextInterface $context): ResponseInterface
+    public function generate(ErrorOccurrence $error, HttpErrorContextInterface $context): ResponseInterface
     {
         // Создайте и верните PSR-7 ответ.
     }
@@ -89,6 +90,7 @@ final readonly class ValidationErrorResponseGenerator implements HttpErrorRespon
 
 ```php
 use Componenta\Error\Context\CliContext;
+use Componenta\Error\ErrorOccurrenceFactory;
 use Componenta\Error\Handler\CliErrorHandler;
 use Componenta\Error\Handler\RenderingCliErrorHandler;
 
@@ -97,7 +99,7 @@ $handler = new CliErrorHandler(new RenderingCliErrorHandler());
 try {
     $app->run();
 } catch (Throwable $exception) {
-    $handler->handle($exception, CliContext::fromArgv());
+    $handler->handle((new ErrorOccurrenceFactory())->create($exception), CliContext::fromArgv());
     exit(1);
 }
 ```
@@ -147,26 +149,28 @@ $context = HttpContext::fromGlobals($serverRequestCreator);
 
 ## Отчёт об ошибках
 
-Слушатели регистрируются для логирования или мониторинга:
+Репортёр не зависит от транспорта. Список слушателей и политика исключений задаются при создании:
 
 ```php
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
+use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Reporter\ErrorReporter;
+use Componenta\Error\Reporter\Policy\NonReportableErrors;
 
-$listeners = new \Componenta\Error\Event\ErrorListenerProvider();
-$listeners->addListener(
-    ErrorListener::createFrom(static function (ErrorEventInterface $event): void {
-        // log or report $event->exception and $event->context
-    }),
-    priority: 100,
+$listener = ErrorListener::createFrom(static function (ErrorEventInterface $event): void {
+    // Используйте $event->error->id, $event->error->exception, $event->context и $event->timestamp.
+});
+$reporter = new ErrorReporter(
+    new ErrorListenerProvider([['listener' => $listener, 'priority' => 100]]),
+    new NonReportableErrors([\InvalidArgumentException::class]),
 );
-$reporter = new \Componenta\Error\Reporter\ErrorReporter($listeners);
 $handler = HttpErrorHandler::createDefaults($responseFactory, reporter: $reporter);
 ```
 
-Отдельные исключения можно исключить из отчётов по имени класса или predicate-функции.
+Глобальное исключение запрещает передачу события всем слушателям. Предикат отдельного слушателя ограничивает только соответствующее направление регистрации. Правила принимают имена классов исключений, списки имён классов и вызываемые объекты, принимающие (ErrorOccurrence, ErrorContextInterface) и возвращающие bool. Для предиката исключения true означает исключить, для предиката слушателя — обработать. Слушатели упорядочиваются по убыванию приоритета, при равных приоритетах сохраняется порядок объявления, при повторении экземпляра действует первая регистрация. Провайдер и политика неизменяемы после создания.
 
-`ErrorReporter` принимает `ListenerExceptionPolicy`. По умолчанию ошибки слушателей подавляются и пишутся через `error_log()`, поэтому ошибка логирования не заменит исходное исключение приложения.
+По умолчанию репортёр продолжает регистрацию при сбое политики, использует системные часы UTC при отказе внедрённых часов и изолирует ошибки отдельных слушателей. ListenerExceptionPolicy::Throw — явная настройка при непосредственном использовании репортёра; HTTP- и CLI-обработчики всегда защищают исходную ошибку от сбоев регистрации. Рекурсивная отправка в том же контексте выполнения подавляется; независимые Fiber работают отдельно.
 
 ## DI-регистрация
 
@@ -179,20 +183,17 @@ $handler = HttpErrorHandler::createDefaults($responseFactory, reporter: $reporte
 | `ConfigKey::HTTP_FALLBACK_GENERATOR` | Service id резервного `HttpErrorResponseGeneratorInterface`. |
 | `ConfigKey::HTTP_RENDERER` | Рендерер стандартного HTTP-генератора ответа. |
 | `ConfigKey::HTTP_GENERATORS` | Упорядоченные идентификаторы сервисов специализированных HTTP-генераторов ответа. |
-| `ConfigKey::HTTP_LISTENERS` | HTTP-слушатели ошибок. |
 | `ConfigKey::CLI_FALLBACK_HANDLER` | Резервный CLI-рендерер или обработчик. |
 | `ConfigKey::CLI_RENDERER` | CLI-рендерер. |
-| `ConfigKey::CLI_LISTENERS` | CLI-слушатели ошибок. |
-| `ConfigKey::HTTP_REPORTER` / `CLI_REPORTER` | Независимые сервисы отчёта по типу транспорта. |
-| `ConfigKey::ERROR_REPORTER` | Явное переопределение общим репортёром. |
-| `ConfigKey::ERROR_ID_GENERATOR` | Сервис генератора идентификатора ошибки. |
+| `ConfigKey::ERROR_LISTENERS` | Идентификаторы слушателей или массивы с идентификатором `listener` и целым `priority`. |
+| `ConfigKey::NON_REPORTABLE_ERRORS` | Исключаемые классы исключений и предикаты. |
 | `ConfigKey::ERROR_LEVEL` | Уровень ошибок, который обрабатывает `ErrorHandlerMiddleware`. |
 
 Если `ConfigKey::HTTP_FALLBACK_GENERATOR` не настроен, стандартный HTTP-обработчик требует `Psr\Http\Message\ResponseFactoryInterface` в контейнере.
 
 ## Переход на версию 2
 
-Требуются Config 4 и PHP 8.4+. Регистрируйте слушателей в `ErrorListenerProvider`, фильтры исключений — в `ErrorReporter`, а не в обработчиках. Атрибуты контекста доступны только через контракт контекста. Все рендереры реализуют `ErrorRendererInterface::render()` и возвращают неизменяемый объект `RenderedError`, реализующий `Stringable`, с полями `content` и `contentType`. Рендерер определяет фактический тип содержимого, вызывающий код — способ его передачи. Числовой код исключения больше не определяет статус неявно. Обработчики изолируют ошибки репортёра и используют независимый аварийный генератор при наличии PSR-17 фабрики. ID ошибки содержит 128 бит случайной энтропии; HTTP-ответ передаёт ID в `X-Error-ID`. Отладочные рендереры могут раскрывать сообщения исключений и исходный код: в production используйте SafeRenderer. Не публикуйте HTML-журналы. Настраивайте обработчики и слушателей до выполнения запросов. Middleware восстанавливает состояние PHP-обработчика ошибок, но не перехватывает аварийное завершение процесса и не гарантирует изоляцию при пересекающемся выполнении Fiber.
+Требуются Config 4 и PHP 8.4+. Передавайте слушателей в конструктор `ErrorListenerProvider`, а правила исключения — в конструктор `NonReportableErrors`. Атрибуты контекста доступны только через контракт контекста. Все рендереры реализуют `ErrorRendererInterface::render()` и возвращают неизменяемый объект `RenderedError`, реализующий `Stringable`, с полями `content` и `contentType`. Рендерер определяет фактический тип содержимого, вызывающий код — способ его передачи. Числовой код исключения больше не определяет статус неявно. Обработчики изолируют ошибки репортёра и используют независимый аварийный генератор при наличии PSR-17 фабрики. ID ошибки содержит 128 бит случайной энтропии; HTTP-ответ передаёт ID в `X-Error-ID`. Отладочные рендереры могут раскрывать сообщения исключений и исходный код: в production используйте SafeRenderer. Не публикуйте HTML-журналы. Настраивайте обработчики и слушателей до выполнения запросов. Middleware восстанавливает состояние PHP-обработчика ошибок, но не перехватывает аварийное завершение процесса и не гарантирует изоляцию при пересекающемся выполнении Fiber.
 
 ## Проверки
 
@@ -207,7 +208,8 @@ $handler = HttpErrorHandler::createDefaults($responseFactory, reporter: $reporte
 ```php
 use Componenta\Error\Renderer\JsonRenderer;
 
-$result = (new JsonRenderer())->render($exception, $context);
+$error = (new \Componenta\Error\ErrorOccurrenceFactory())->create($exception);
+$result = (new JsonRenderer())->render($error, $context);
 $result->content;      // Содержимое JSON
 $result->contentType;  // application/json; charset=utf-8
 (string) $result;     // То же содержимое
@@ -216,3 +218,5 @@ $result->contentType;  // application/json; charset=utf-8
 Пользовательские рендереры должны возвращать `new RenderedError($content, $contentType)`. `CompositeErrorRenderer` передаёт выбранный результат без изменений. Генератор HTTP-ответа использует содержимое и тип напрямую, обработчик командной строки выводит только содержимое. Отдельного контракта HTTP-рендеринга и неявной поддержки строковых рендереров нет.
 
 `ErrorReporter` устанавливает временную метку через внедрённый `ClockInterface` (PSR-20); по умолчанию используются системные часы UTC. Событие хранит готовую временную метку. Результат транспортного слоя в событие не передаётся; фактический HTTP-статус, если он известен, доступен через `ErrorContextAttribute::HTTP_STATUS_CODE`.
+
+`ErrorOccurrence` содержит исходное `Throwable` и обязательный идентификатор. `ErrorOccurrenceFactory` создаёт объект один раз на границе перехвата; стандартный ID состоит из `ERR-` и 128 случайных бит в шестнадцатеричном представлении (без суффикса времени). Контракты рендеринга, обработки и регистрации принимают тот же экземпляр. `HttpStatusResolver` принимает исходное исключение. ID не хранится в атрибутах контекста. По умолчанию DI использует общий `ErrorReporterInterface` для HTTP и CLI; переопределяйте сервис соответствующего интерфейса для замены репортёра, политики, провайдера слушателей или генератора ID. `ErrorEvent` содержит только `error`, `context` и `timestamp`.

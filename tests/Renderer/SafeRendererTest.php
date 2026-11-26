@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Context\HttpContext;
@@ -21,7 +22,7 @@ final class SafeRendererTest extends TestCase
         $renderer = new SafeRenderer();
         $exception = new RuntimeException('database password leaked');
 
-        $output = $renderer->render($exception, CliContext::fromArgv())->content;
+        $output = $renderer->render(new ErrorOccurrence($exception, 'ERR-test'), CliContext::fromArgv())->content;
 
         self::assertStringContainsString('An unexpected error occurred', $output);
         self::assertStringContainsString('Error ID: ERR-', $output);
@@ -44,7 +45,7 @@ final class SafeRendererTest extends TestCase
                 templatePath: $template,
             );
 
-            $output = $renderer->render(new RuntimeException('database password leaked'), CliContext::fromArgv())->content;
+            $output = $renderer->render(new ErrorOccurrence(new RuntimeException('database password leaked'), 'ERR-test'), CliContext::fromArgv())->content;
 
             self::assertSame(
                 'status=500;message=Hidden &lt;safe&gt;;support=support@example.test',
@@ -61,10 +62,10 @@ final class SafeRendererTest extends TestCase
         $context = (new HttpContext(new ServerRequest('GET', '/broken', ['Accept' => 'application/json'])))
             ->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, 503);
 
-        $output = $renderer->render(new RuntimeException('database password leaked'), $context)->content;
+        $output = $renderer->render(new ErrorOccurrence(new RuntimeException('database password leaked'), 'ERR-test'), $context)->content;
         $decoded = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
 
-        self::assertMatchesRegularExpression('/^ERR-[A-F0-9]{32}-\d+$/', $decoded['error']['id']);
+        self::assertMatchesRegularExpression('/^ERR-test$/', $decoded['error']['id']);
         unset($decoded['error']['id']);
         self::assertSame(
             [

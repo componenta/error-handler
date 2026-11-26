@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Event;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
@@ -26,7 +27,7 @@ final class ErrorListenerTest extends TestCase
             $receivedEvent = $event;
         });
 
-        $event = new ErrorEvent(new RuntimeException(), CliContext::fromArgv(), new \DateTimeImmutable('2026-01-01T00:00:00+00:00'));
+        $event = new ErrorEvent(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv(), new \DateTimeImmutable('2026-01-01T00:00:00+00:00'));
         $listener->handleEvent($event);
 
         self::assertSame($event, $receivedEvent);
@@ -36,17 +37,17 @@ final class ErrorListenerTest extends TestCase
     {
         $listener = ErrorListener::createFrom(fn(ErrorEventInterface $e) => null);
 
-        self::assertTrue($listener->supports(new RuntimeException(), CliContext::fromArgv()));
+        self::assertTrue($listener->supports(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv()));
     }
 
     public function testSupportsReturnsFalseWhenCallbackReturnsFalse(): void
     {
         $listener = ErrorListener::createFrom(
             callback: fn(ErrorEventInterface $e) => null,
-            supports: fn(Throwable $e, ErrorContextInterface $c): bool => false,
+            supports: fn(ErrorOccurrence $e, ErrorContextInterface $c): bool => false,
         );
 
-        self::assertFalse($listener->supports(new RuntimeException(), CliContext::fromArgv()));
+        self::assertFalse($listener->supports(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv()));
     }
 
     public function testSupportsWithStringFiltersByInstanceof(): void
@@ -56,8 +57,8 @@ final class ErrorListenerTest extends TestCase
             supports: RuntimeException::class,
         );
 
-        self::assertTrue($listener->supports(new RuntimeException(), CliContext::fromArgv()));
-        self::assertFalse($listener->supports(new InvalidArgumentException(), CliContext::fromArgv()));
+        self::assertTrue($listener->supports(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv()));
+        self::assertFalse($listener->supports(new ErrorOccurrence(new InvalidArgumentException(), 'ERR-test'), CliContext::fromArgv()));
     }
 
     public function testSupportsWithArrayFiltersByMultipleClasses(): void
@@ -67,8 +68,8 @@ final class ErrorListenerTest extends TestCase
             supports: [RuntimeException::class, InvalidArgumentException::class],
         );
 
-        self::assertTrue($listener->supports(new RuntimeException(), CliContext::fromArgv()));
-        self::assertTrue($listener->supports(new InvalidArgumentException(), CliContext::fromArgv()));
-        self::assertFalse($listener->supports(new LogicException(), CliContext::fromArgv()));
+        self::assertTrue($listener->supports(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv()));
+        self::assertTrue($listener->supports(new ErrorOccurrence(new InvalidArgumentException(), 'ERR-test'), CliContext::fromArgv()));
+        self::assertFalse($listener->supports(new ErrorOccurrence(new LogicException(), 'ERR-test'), CliContext::fromArgv()));
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Renderer\PrettyPageRenderer;
 use Componenta\Error\Renderer\SafeRenderer;
@@ -34,7 +35,7 @@ final class TemplateBufferTest extends TestCase
         try {
             echo 'parent-buffer';
             $html = (new SafeRenderer(templatePath: $template))->render(
-                new RuntimeException('original'),
+                new ErrorOccurrence(new RuntimeException('original'), 'ERR-test'),
                 new HttpContext(new ServerRequest('GET', '/')),
             )->content;
             self::assertSame($level + 1, ob_get_level());
@@ -60,7 +61,7 @@ final class TemplateBufferTest extends TestCase
         try {
             $this->expectException(RuntimeException::class);
             (new PrettyPageRenderer(templatePath: $template, includeSource: false))->render(
-                new RuntimeException('original'),
+                new ErrorOccurrence(new RuntimeException('original'), 'ERR-test'),
                 new HttpContext(new ServerRequest('GET', '/')),
             )->content;
         } finally {

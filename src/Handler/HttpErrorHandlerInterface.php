@@ -7,7 +7,7 @@ namespace Componenta\Error\Handler;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\SupportsErrorInterface;
 use Psr\Http\Message\ResponseInterface;
-use Throwable;
+use Componenta\Error\ErrorOccurrence;
 
 /**
  * Interface for HTTP error handlers
@@ -19,12 +19,12 @@ interface HttpErrorHandlerInterface extends SupportsErrorInterface
     /**
      * Handle exception and create HTTP response
      *
-     * @param Throwable $exception Exception to handle
+     * @param ErrorOccurrence $error Error occurrence
      * @param HttpErrorContextInterface $context HTTP context
      * @return ResponseInterface PSR-7 response with error content
      */
     public function handle(
-        Throwable $exception,
+        ErrorOccurrence $error,
         HttpErrorContextInterface $context,
     ): ResponseInterface;
 }

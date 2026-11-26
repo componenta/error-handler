@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Throwable;
 
 /**
@@ -29,12 +30,13 @@ readonly class JsonRenderer implements ErrorRendererInterface
     /**
      * Render exception as JSON
      *
-     * @param Throwable $exception Exception to render
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
+        $exception = $error->exception;
         $data = [
             'error' => [
                 'type' => $exception::class,
@@ -62,11 +64,11 @@ readonly class JsonRenderer implements ErrorRendererInterface
     /**
      * Check if renderer supports the exception
      *
-     * @param Throwable $exception Exception to check
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return true Always returns true
      */
-    public function supports(Throwable $exception, ErrorContextInterface $context): true
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): true
     {
         return true;
     }

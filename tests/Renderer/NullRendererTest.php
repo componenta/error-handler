@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Renderer\NullRenderer;
 use PHPUnit\Framework\Attributes\TestDox;
@@ -18,7 +19,7 @@ final class NullRendererTest extends TestCase
         $renderer = new NullRenderer();
         $exception = new RuntimeException('Test error');
 
-        $output = $renderer->render($exception, CliContext::fromArgv())->content;
+        $output = $renderer->render(new ErrorOccurrence($exception, 'ERR-test'), CliContext::fromArgv())->content;
 
         self::assertEmpty($output);
     }

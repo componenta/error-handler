@@ -7,8 +7,7 @@ namespace Componenta\Error\Renderer;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Componenta\Error\Diagnostic\DiagnosticData;
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Internal\ErrorCorrelation;
-use Throwable;
+use Componenta\Error\ErrorOccurrence;
 
 /** Production CLI output: a generic message and the correlation ID only. */
 final readonly class SafeCliRenderer implements ErrorRendererInterface
@@ -17,17 +16,15 @@ final readonly class SafeCliRenderer implements ErrorRendererInterface
     {
     }
 
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return $context instanceof CliErrorContextInterface;
     }
 
-    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
-        $id = ErrorCorrelation::read($context);
-
         return new RenderedError(
-            DiagnosticData::terminal($this->message) . ($id === null ? '' : "\nError ID: " . $id),
+            DiagnosticData::terminal($this->message) . "\nError ID: " . $error->id,
             'text/plain; charset=utf-8',
         );
     }

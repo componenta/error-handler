@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Http;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Http\HttpErrorResponseGenerator;
@@ -28,7 +29,7 @@ final class HttpErrorResponseGeneratorTest extends TestCase
         );
 
         $response = $generator->generate(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/')),
         );
 
@@ -44,7 +45,7 @@ final class HttpErrorResponseGeneratorTest extends TestCase
         );
 
         $response = $generator->generate(
-            new \Componenta\Http\Exception\NotFoundException('missing'),
+            new ErrorOccurrence(new \Componenta\Http\Exception\NotFoundException('missing'), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/')),
         );
 
@@ -59,7 +60,7 @@ final class HttpErrorResponseGeneratorTest extends TestCase
         );
 
         $response = $generator->generate(
-            new \Componenta\Http\Exception\NotFoundException('missing'),
+            new ErrorOccurrence(new \Componenta\Http\Exception\NotFoundException('missing'), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/missing', ['Accept' => 'application/json'])),
         );
 
@@ -77,7 +78,7 @@ final class HttpErrorResponseGeneratorTest extends TestCase
         );
 
         $response = $generator->generate(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json'])),
         );
 
@@ -92,11 +93,11 @@ final class HttpErrorResponseGeneratorTest extends TestCase
         );
 
         self::assertTrue($generator->supports(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/')),
         ));
         self::assertFalse($generator->supports(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new CliContext(new ArrayInput([]), new BufferedOutput()),
         ));
     }

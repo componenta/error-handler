@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Handler\RenderingCliErrorHandler;
 use Componenta\Error\Renderer\ConsoleErrorRenderer;
@@ -34,7 +35,7 @@ final class ConsoleErrorRendererTest extends TestCase
         );
 
         try {
-            $rendered = $renderer->render($error, $context)->content;
+            $rendered = $renderer->render(new ErrorOccurrence($error, 'ERR-test'), $context)->content;
         } finally {
             restore_error_handler();
         }
@@ -59,7 +60,7 @@ final class ConsoleErrorRendererTest extends TestCase
             new ConsoleErrorRenderer(colors: false, terminalWidth: 100, contextLines: 0),
         );
 
-        $handler->handle(new RuntimeException('Original command failed'), new CliContext($input, $output));
+        $handler->handle(new ErrorOccurrence(new RuntimeException('Original command failed'), 'ERR-test'), new CliContext($input, $output));
 
         $rendered = $output->fetch();
         self::assertStringContainsString('Original command failed', $rendered);
@@ -83,7 +84,7 @@ final class ConsoleErrorRendererTest extends TestCase
             new ConsoleErrorRenderer(colors: false, terminalWidth: 100, contextLines: 0),
         );
 
-        $handler->handle(new RuntimeException('Original command failed'), new CliContext($input, $output));
+        $handler->handle(new ErrorOccurrence(new RuntimeException('Original command failed'), 'ERR-test'), new CliContext($input, $output));
 
         $rendered = $output->fetch();
         self::assertStringContainsString('Original command failed', $rendered);
@@ -104,7 +105,7 @@ final class ConsoleErrorRendererTest extends TestCase
         $renderer = new ConsoleErrorRenderer(debug: false, colors: false, terminalWidth: 100);
         $error = new $exceptionClass('The command failed');
 
-        $rendered = $renderer->render($error)->content;
+        $rendered = $renderer->render(new ErrorOccurrence($error, 'ERR-test'), \Componenta\Error\Context\CliContext::fromArgv())->content;
 
         self::assertMatchesRegularExpression('/✖\h+' . preg_quote($heading, '/') . '\h*$/mu', $rendered);
         self::assertStringContainsString('The command failed', $rendered);

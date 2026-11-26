@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
-use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Handler\CliErrorHandler;
 use Componenta\Error\Handler\RenderingCliErrorHandler;
 use Componenta\Error\Renderer\PlainTextRenderer;
@@ -21,31 +21,29 @@ final class SafeCliRendererTest extends TestCase
     {
         $output = new BufferedOutput();
         CliErrorHandler::createDefaults()->handle(
-            new RuntimeException('database credentials leaked'),
+            new ErrorOccurrence(new RuntimeException('database credentials leaked'), 'ERR-test'),
             new CliContext(new ArrayInput([]), $output),
         );
         $rendered = $output->fetch();
 
         self::assertStringContainsString('An unexpected error occurred', $rendered);
-        self::assertMatchesRegularExpression('/Error ID: ERR-[A-F0-9]{32}-[0-9]+/', $rendered);
+        self::assertMatchesRegularExpression('/Error ID: ERR-test/', $rendered);
         self::assertStringNotContainsString('database credentials leaked', $rendered);
         self::assertStringNotContainsString(__FILE__, $rendered);
     }
 
     public function testSafeCliRendererUsesExistingCorrelationAndNoExceptionDetails(): void
     {
-        $context = new CliContext(new ArrayInput([]), new BufferedOutput(), [
-            ErrorContextAttribute::ERROR_ID => 'ERR-example',
-        ]);
+        $context = new CliContext(new ArrayInput([]), new BufferedOutput());
         $renderer = new SafeCliRenderer();
-        self::assertSame("An unexpected error occurred\nError ID: ERR-example", $renderer->render(new RuntimeException('private'), $context)->content);
+        self::assertSame("An unexpected error occurred\nError ID: ERR-example", $renderer->render(new ErrorOccurrence(new RuntimeException('private'), 'ERR-example'), $context)->content);
     }
 
     public function testDiagnosticRendererRemainsAnExplicitOptIn(): void
     {
         $output = new BufferedOutput();
         (new RenderingCliErrorHandler(new PlainTextRenderer(debug: true)))->handle(
-            new RuntimeException('diagnostic message'),
+            new ErrorOccurrence(new RuntimeException('diagnostic message'), 'ERR-test'),
             new CliContext(new ArrayInput([]), $output),
         );
 

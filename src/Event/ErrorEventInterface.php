@@ -5,34 +5,12 @@ declare(strict_types=1);
 namespace Componenta\Error\Event;
 
 use Componenta\Error\ErrorContextInterface;
-use Throwable;
+use Componenta\Error\ErrorOccurrence;
 use DateTimeImmutable;
 
-/**
- * Interface for error events
- *
- * Events are dispatched to listeners when exceptions are reported.
- * Provides access to the exception and context information.
- */
 interface ErrorEventInterface
 {
-    /**
-     * Get the exception that triggered the event
-     */
-    public Throwable $exception { get; }
-
-    /**
-     * Get the error context
-     */
+    public ErrorOccurrence $error { get; }
     public ErrorContextInterface $context { get; }
-
-    /**
-     * Get the event timestamp
-     */
     public DateTimeImmutable $timestamp { get; }
-
-    /**
-     * Get optional error ID shared with user-facing output and logs
-     */
-    public ?string $errorId { get; }
 }

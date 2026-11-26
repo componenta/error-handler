@@ -7,12 +7,12 @@ namespace Componenta\Error\Http;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\SupportsErrorInterface;
 use Psr\Http\Message\ResponseInterface;
-use Throwable;
+use Componenta\Error\ErrorOccurrence;
 
 interface HttpErrorResponseGeneratorInterface extends SupportsErrorInterface
 {
     public function generate(
-        Throwable $exception,
+        ErrorOccurrence $error,
         HttpErrorContextInterface $context,
     ): ResponseInterface;
 }

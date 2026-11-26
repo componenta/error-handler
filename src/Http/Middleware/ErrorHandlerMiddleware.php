@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Componenta\Error\Http\Middleware;
 
 use Throwable;
-use Componenta\Error\Http\HttpErrorResponseGeneratorInterface;
+use Componenta\Error\Http\EmergencyHttpResponseGenerator;
+use Componenta\Error\ErrorOccurrenceFactory;
 use Componenta\Error\Internal\FailureLog;
 use Componenta\Error\ConfigKey;
 use Componenta\Error\Context\HttpContext;
@@ -33,7 +34,8 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
     public function __construct(
         private HttpErrorHandlerInterface $errorHandler,
         private int $errorLevel = E_ALL,
-        private ?HttpErrorResponseGeneratorInterface $emergencyGenerator = null,
+        private ?EmergencyHttpResponseGenerator $emergencyGenerator = null,
+        private ErrorOccurrenceFactory $errorFactory = new ErrorOccurrenceFactory(),
     ) {
     }
 
@@ -63,13 +65,17 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         } catch (Throwable $e) {
             $context = new HttpContext($request);
+            $error = null;
             try {
-                return $this->errorHandler->handle($e, $context);
+                $error = $this->errorFactory->create($e);
+                return $this->errorHandler->handle($error, $context);
             } catch (Throwable $failure) {
                 FailureLog::write('middleware error handler', $failure, $e);
                 if ($this->emergencyGenerator !== null) {
                     try {
-                        return $this->emergencyGenerator->generate($e, $context);
+                        return $error === null
+                            ? $this->emergencyGenerator->generateUncorrelated($context)
+                            : $this->emergencyGenerator->generate($error, $context);
                     } catch (Throwable $secondary) {
                         FailureLog::write('middleware emergency response', $secondary, $e);
                     }

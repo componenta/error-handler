@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Throwable;
-use Componenta\Error\Internal\ErrorCorrelation;
-use Componenta\Error\ErrorId\RandomErrorIdGenerator;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpErrorContextInterface;
 
 /**
@@ -25,13 +24,11 @@ readonly class SafeRenderer implements ErrorRendererInterface
      *
      * @param string $defaultMessage Generic error message
      * @param string|null $supportEmail Optional support email to display
-     * @param string $errorIdPrefix Prefix for generated error IDs
      * @param string|null $templatePath Optional safe HTML template path
      */
     public function __construct(
         private string $defaultMessage = 'An unexpected error occurred',
         private ?string $supportEmail = null,
-        private string $errorIdPrefix = 'ERR',
         private ?string $templatePath = null,
     ) {
     }
@@ -39,13 +36,13 @@ readonly class SafeRenderer implements ErrorRendererInterface
     /**
      * Render exception as safe output
      *
-     * @param Throwable $exception Exception to render
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
-        $errorId = $this->resolveErrorId($exception, $context);
+        $errorId = $error->id;
         $statusCode = $this->getStatusCode($context);
 
         if ($context instanceof HttpErrorContextInterface
@@ -59,11 +56,11 @@ readonly class SafeRenderer implements ErrorRendererInterface
     /**
      * Check if renderer supports the exception
      *
-     * @param Throwable $exception Exception to check
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return true Always returns true
      */
-    public function supports(Throwable $exception, ErrorContextInterface $context): true
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): true
     {
         return true;
     }
@@ -138,20 +135,6 @@ readonly class SafeRenderer implements ErrorRendererInterface
             . '</p><p>Error ID: '
             . $id
             . '</p></body></html>';
-    }
-
-    /**
-     * Generate unique error ID
-     */
-    private function resolveErrorId(Throwable $exception, ErrorContextInterface $context): string
-    {
-        if (array_key_exists(ErrorContextAttribute::ERROR_ID, $context->getAttributes())) {
-            return ErrorCorrelation::read($context) ?? 'unavailable';
-        }
-
-        [, $id] = ErrorCorrelation::assign($exception, $context, new RandomErrorIdGenerator($this->errorIdPrefix));
-
-        return $id ?? 'unavailable';
     }
 
     /**

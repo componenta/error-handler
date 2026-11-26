@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Handler;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Handler\RenderingCliErrorHandler;
@@ -24,7 +25,7 @@ final class RenderingCliErrorHandlerTest extends TestCase
 
         $output = new BufferedOutput();
         $handler->handle(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new CliContext(new ArrayInput([]), $output),
         );
 
@@ -36,11 +37,11 @@ final class RenderingCliErrorHandlerTest extends TestCase
         $handler = new RenderingCliErrorHandler();
 
         self::assertTrue($handler->supports(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new CliContext(new ArrayInput([]), new BufferedOutput()),
         ));
         self::assertFalse($handler->supports(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/')),
         ));
     }
@@ -50,7 +51,7 @@ final class RenderingCliErrorHandlerTest extends TestCase
         $handler = new RenderingCliErrorHandler(new ErrorRendererStub('rendered error'));
 
         $output = $handler->render(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new CliContext(new ArrayInput([]), new BufferedOutput()),
         )->content;
 

@@ -4,24 +4,19 @@ declare(strict_types=1);
 
 namespace Componenta\Error\ErrorId;
 
-use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\ErrorId\ErrorIdGeneratorInterface;
-use Throwable;
+use InvalidArgumentException;
 
 final readonly class RandomErrorIdGenerator implements ErrorIdGeneratorInterface
 {
-    public function __construct(
-        private string $prefix = 'ERR',
-    ) {
+    public function __construct(private string $prefix = 'ERR')
+    {
+        if (preg_match('/\A[A-Za-z0-9._:-]{1,95}\z/', $prefix) !== 1) {
+            throw new InvalidArgumentException('Invalid error identifier prefix.');
+        }
     }
 
-    public function generate(Throwable $exception, ErrorContextInterface $context): string
+    public function generate(): string
     {
-        return sprintf(
-            '%s-%s-%d',
-            $this->prefix,
-            strtoupper(bin2hex(random_bytes(16))),
-            time(),
-        );
+        return $this->prefix . '-' . strtoupper(bin2hex(random_bytes(16)));
     }
 }

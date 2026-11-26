@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Factory;
 
 use Componenta\Error\ConfigKey;
+use Componenta\Error\ErrorOccurrenceFactory;
 use Componenta\Error\Handler\HttpErrorHandlerInterface;
 use Componenta\Error\Http\Middleware\ErrorHandlerMiddleware;
 use LogicException;
@@ -37,6 +38,9 @@ final readonly class ErrorHandlerMiddlewareFactory
             $container->has(ResponseFactoryInterface::class)
                 ? new EmergencyHttpResponseGenerator(TypedService::get($container, ResponseFactoryInterface::class, ResponseFactoryInterface::class))
                 : null,
+            $container->has(ErrorOccurrenceFactory::class)
+                ? TypedService::get($container, ErrorOccurrenceFactory::class, ErrorOccurrenceFactory::class)
+                : new ErrorOccurrenceFactory(),
         );
     }
 }

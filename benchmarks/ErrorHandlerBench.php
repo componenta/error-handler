@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Benchmarks;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Event\ErrorListener;
@@ -36,7 +37,7 @@ final class ErrorHandlerBench
     private HttpContext $html;
     private HttpContext $json;
     private CliContext $cli;
-    private RuntimeException $exception;
+    private ErrorOccurrence $error;
     private SafeRenderer $safe;
     private PrettyPageRenderer $pretty;
     private ConsoleErrorRenderer $console;
@@ -56,7 +57,7 @@ final class ErrorHandlerBench
         $this->html = new HttpContext(new ServerRequest('GET', '/'));
         $this->json = new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'application/json']));
         $this->cli = new CliContext(new ArrayInput([]), new BufferedOutput());
-        $this->exception = new RuntimeException('benchmark error');
+        $this->error = new ErrorOccurrence(new RuntimeException('benchmark error'), 'ERR-bench');
         $this->safe = new SafeRenderer();
         $this->pretty = new PrettyPageRenderer(includeSource: false);
         $this->console = new ConsoleErrorRenderer(colors: false, terminalWidth: 100);
@@ -69,42 +70,42 @@ final class ErrorHandlerBench
 
     public function benchWarmHttpError(): void
     {
-        $this->handler->handle($this->exception, $this->json);
+        $this->handler->handle($this->error, $this->json);
     }
 
     public function benchColdHttpError(): void
     {
-        HttpErrorHandler::createDefaults($this->factory)->handle($this->exception, $this->json);
+        HttpErrorHandler::createDefaults($this->factory)->handle($this->error, $this->json);
     }
 
     public function benchSafeHtml(): void
     {
-        $this->safe->render($this->exception, $this->html);
+        $this->safe->render($this->error, $this->html);
     }
 
     public function benchSafeJson(): void
     {
-        $this->safe->render($this->exception, $this->json);
+        $this->safe->render($this->error, $this->json);
     }
 
     public function benchPrettyHtml(): void
     {
-        $this->pretty->render($this->exception, $this->html);
+        $this->pretty->render($this->error, $this->html);
     }
 
     public function benchConsole(): void
     {
-        $this->console->render($this->exception, $this->cli);
+        $this->console->render($this->error, $this->cli);
     }
 
     #[Bench\ParamProviders('provideFanOut')]
     public function benchReporter(array $params): void
     {
-        $listeners = new ErrorListenerProvider();
+        $listeners = [];
         for ($i = 0; $i < $params['listeners']; $i++) {
-            $listeners->addListener(ErrorListener::createFrom(static function (): void {}));
+            $listeners[] = ErrorListener::createFrom(static function (): void {});
         }
-        (new ErrorReporter($listeners))->report($this->exception, $this->json);
+        (new ErrorReporter(new ErrorListenerProvider($listeners)))->report($this->error, $this->json);
     }
 
     public function provideFanOut(): iterable

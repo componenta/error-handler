@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Renderer\PrettyPageRenderer;
 use Nyholm\Psr7\ServerRequest;
@@ -26,7 +27,7 @@ final class PrettyPageRendererTest extends TestCase
         try {
             $renderer = new PrettyPageRenderer(applicationName: 'Test <App>', templatePath: $template);
 
-            $output = $renderer->render(new RuntimeException('Payment <failed>'), $this->context())->content;
+            $output = $renderer->render(new ErrorOccurrence(new RuntimeException('Payment <failed>'), 'ERR-test'), $this->context())->content;
 
             self::assertStringContainsString('app=Test &lt;App&gt;', $output);
             self::assertStringContainsString('exception=Payment &lt;failed&gt;', $output);
@@ -49,7 +50,7 @@ final class PrettyPageRendererTest extends TestCase
             }
         };
 
-        $output = $renderer->render($exception, $this->context())->content;
+        $output = $renderer->render(new ErrorOccurrence($exception, 'ERR-test'), $this->context())->content;
 
         self::assertStringContainsString('invoiceId', $output);
         self::assertStringContainsString('inv-100', $output);
@@ -57,11 +58,8 @@ final class PrettyPageRendererTest extends TestCase
 
     public function testDebugPageDisplaysCorrelationAndDisablesReferrers(): void
     {
-        $context = $this->context()->withAttribute(
-            \Componenta\Error\Context\ErrorContextAttribute::ERROR_ID,
-            'ERR-correlation-123',
-        );
-        $html = (new PrettyPageRenderer(includeSource: false))->render(new RuntimeException('failure'), $context)->content;
+        $context = $this->context();
+        $html = (new PrettyPageRenderer(includeSource: false))->render(new ErrorOccurrence(new RuntimeException('failure'), 'ERR-correlation-123'), $context)->content;
 
         self::assertStringContainsString('Error ID: ERR-correlation-123', $html);
         self::assertStringContainsString('<meta name="referrer" content="no-referrer">', $html);

@@ -6,7 +6,7 @@ namespace Componenta\Error\Handler;
 
 use Componenta\Error\Context\CliErrorContextInterface;
 use Componenta\Error\SupportsErrorInterface;
-use Throwable;
+use Componenta\Error\ErrorOccurrence;
 
 /**
  * Interface for CLI error handlers
@@ -18,12 +18,12 @@ interface CliErrorHandlerInterface extends SupportsErrorInterface
     /**
      * Handle exception in CLI context
      *
-     * @param Throwable $exception Exception to handle
+     * @param ErrorOccurrence $error Error occurrence
      * @param CliErrorContextInterface $context CLI context with output
      * @return void
      */
     public function handle(
-        Throwable $exception,
+        ErrorOccurrence $error,
         CliErrorContextInterface $context,
     ): void;
 }

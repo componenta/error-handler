@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Event;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorListener;
 use Componenta\Error\Renderer\CompositeErrorRenderer;
-use Componenta\Error\Reporter\ErrorReporter;
+use Componenta\Error\Reporter\Policy\NonReportableErrors;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
@@ -21,7 +22,7 @@ final class InvalidFilterTest extends TestCase
     public function testReporterRejectsInvalidClassFilterDuringConfiguration(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        (new ErrorReporter())->addNonReportableError('not a throwable class');
+        new NonReportableErrors(['not a throwable class']);
     }
 
     public function testCompositeRejectsIndirectCycles(): void

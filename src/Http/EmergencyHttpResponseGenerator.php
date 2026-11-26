@@ -6,9 +6,9 @@ namespace Componenta\Error\Http;
 
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
-use Throwable;
 
 /** Independent response path: no renderer, status resolver, template or reporter. */
 final readonly class EmergencyHttpResponseGenerator implements HttpErrorResponseGeneratorInterface
@@ -17,20 +17,33 @@ final readonly class EmergencyHttpResponseGenerator implements HttpErrorResponse
     {
     }
 
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return $context instanceof HttpErrorContextInterface;
     }
 
-    public function generate(Throwable $exception, HttpErrorContextInterface $context): ResponseInterface
+    public function generate(ErrorOccurrence $error, HttpErrorContextInterface $context): ResponseInterface
+    {
+        return $this->build($context, $error->id);
+    }
+
+    /** Last-resort path if occurrence creation itself failed. */
+    public function generateUncorrelated(HttpErrorContextInterface $context): ResponseInterface
+    {
+        return $this->build($context, null);
+    }
+
+    private function build(HttpErrorContextInterface $context, ?string $id): ResponseInterface
     {
         $response = $this->factory->createResponse(500)
             ->withHeader('Content-Type', 'text/plain; charset=utf-8')
             ->withHeader('Cache-Control', 'no-store')
             ->withHeader('Referrer-Policy', 'no-referrer')
             ->withHeader('X-Content-Type-Options', 'nosniff');
+        if ($id !== null) {
+            $response = $response->withHeader('X-Error-ID', $id);
+        }
         if (strtoupper($context->request->getMethod()) !== 'HEAD') {
-            $id = \Componenta\Error\Internal\ErrorCorrelation::read($context);
             \Componenta\Error\Internal\StreamWriter::write($response->getBody(), 'An unexpected error occurred' . ($id !== null ? "\nError ID: " . $id : ''));
         }
 

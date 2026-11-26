@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Renderer\HtmlRenderer;
 use DOMDocument;
@@ -19,7 +20,7 @@ final class HtmlRendererTest extends TestCase
         $renderer = new HtmlRenderer();
         $exception = new RuntimeException('Test error');
 
-        $output = $renderer->render($exception, CliContext::fromArgv())->content;
+        $output = $renderer->render(new ErrorOccurrence($exception, 'ERR-test'), CliContext::fromArgv())->content;
 
         $dom = new DOMDocument();
         $result = @$dom->loadHTML($output, LIBXML_NOERROR);

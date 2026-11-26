@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\ErrorContextInterface;
@@ -62,7 +63,7 @@ final class RenderedErrorTest extends TestCase
     #[DataProvider('renderers')]
     public function testEveryRendererDeclaresActualMediaType(ErrorRendererInterface $renderer, ErrorContextInterface $context, string $type): void
     {
-        $result = $renderer->render(new RuntimeException('failure'), $context);
+        $result = $renderer->render(new ErrorOccurrence(new RuntimeException('failure'), 'ERR-test'), $context);
 
         self::assertInstanceOf(RenderedError::class, $result);
         self::assertSame($type, $result->contentType);
@@ -96,24 +97,24 @@ final class RenderedErrorTest extends TestCase
         $result = new RenderedError('{"error":"custom"}', 'application/problem+json');
         $renderer = new readonly class($result) implements ErrorRendererInterface {
             public function __construct(private RenderedError $result) {}
-            public function supports(Throwable $exception, ErrorContextInterface $context): bool { return true; }
-            public function render(Throwable $exception, ErrorContextInterface $context): RenderedError { return $this->result; }
+            public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool { return true; }
+            public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError { return $this->result; }
         };
         $composite = new CompositeErrorRenderer();
         $composite->addRenderer($renderer);
         $error = new RuntimeException('failure');
         $http = new HttpContext(new ServerRequest('GET', '/', ['Accept' => 'text/html']));
-        self::assertSame($result, $composite->render($error, $http));
+        self::assertSame($result, $composite->render(new ErrorOccurrence($error, 'ERR-test'), $http));
 
-        $response = (new HttpErrorResponseGenerator(new Psr17Factory(), $composite))->generate($error, $http);
+        $response = (new HttpErrorResponseGenerator(new Psr17Factory(), $composite))->generate(new ErrorOccurrence($error, 'ERR-test'), $http);
         self::assertSame($result->contentType, $response->getHeaderLine('Content-Type'));
         self::assertSame($result->content, (string) $response->getBody());
 
         $output = new BufferedOutput();
         $cli = new CliContext(new ArrayInput([]), $output);
         $handler = new RenderingCliErrorHandler($composite);
-        self::assertSame($result, $handler->render($error, $cli));
-        $handler->handle($error, $cli);
+        self::assertSame($result, $handler->render(new ErrorOccurrence($error, 'ERR-test'), $cli));
+        $handler->handle(new ErrorOccurrence($error, 'ERR-test'), $cli);
         self::assertSame($result->content . PHP_EOL, $output->fetch());
     }
 }

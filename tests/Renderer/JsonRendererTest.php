@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Renderer\JsonRenderer;
 use PHPUnit\Framework\Attributes\TestDox;
@@ -18,7 +19,7 @@ final class JsonRendererTest extends TestCase
         $renderer = new JsonRenderer();
         $exception = new RuntimeException('Test error', 500);
 
-        $output = $renderer->render($exception, CliContext::fromArgv())->content;
+        $output = $renderer->render(new ErrorOccurrence($exception, 'ERR-test'), CliContext::fromArgv())->content;
 
         self::assertJson($output);
     }

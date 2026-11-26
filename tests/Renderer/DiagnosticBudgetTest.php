@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Diagnostic\DiagnosticData;
 use Componenta\Error\Renderer\PrettyPageRenderer;
@@ -59,7 +60,7 @@ final class DiagnosticBudgetTest extends TestCase
 
         try {
             $body = (new PrettyPageRenderer(templatePath: $template, captureJsonBody: true, includeSource: false))
-                ->render(new RuntimeException('original'), new HttpContext($request))->content;
+                ->render(new ErrorOccurrence(new RuntimeException('original'), 'ERR-test'), new HttpContext($request))->content;
 
             self::assertSame(['password' => '[redacted]', 'name' => 'visible-value'], json_decode($body, true, flags: JSON_THROW_ON_ERROR));
             self::assertSame(5, $position);

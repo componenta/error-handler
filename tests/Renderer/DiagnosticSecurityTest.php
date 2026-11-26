@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Renderer;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Renderer\PrettyPageRenderer;
 use Componenta\Error\Renderer\ConsoleErrorRenderer;
@@ -26,7 +27,7 @@ final class DiagnosticSecurityTest extends TestCase
             private string $accessToken = 'property-' . 'secret-123';
         };
 
-        $html = (new PrettyPageRenderer(includeSource: false))->render($error, new HttpContext($request))->content;
+        $html = (new PrettyPageRenderer(includeSource: false))->render(new ErrorOccurrence($error, 'ERR-test'), new HttpContext($request))->content;
 
         foreach ([$secret('query'), $secret('header'), $secret('cookie'), $secret('body'), $secret('raw'), $secret('property'), 'cdn.' . 'jsdelivr.net', 'fonts.' . 'googleapis.com'] as $secret) {
             self::assertStringNotContainsString($secret, $html);
@@ -37,7 +38,7 @@ final class DiagnosticSecurityTest extends TestCase
     public function testProductionPrettyRendererDoesNotBuildDiagnostics(): void
     {
         $html = (new PrettyPageRenderer(debug: false))->render(
-            new RuntimeException('private-message-123'), new HttpContext(new ServerRequest('GET', '/')),
+            new ErrorOccurrence(new RuntimeException('private-message-123'), 'ERR-test'), new HttpContext(new ServerRequest('GET', '/')),
         )->content;
         self::assertStringNotContainsString('private-message-123', $html);
     }
@@ -45,7 +46,7 @@ final class DiagnosticSecurityTest extends TestCase
     public function testConsoleDoesNotEmitUntrustedEscapeSequences(): void
     {
         $renderer = new ConsoleErrorRenderer(debug: false, colors: false, terminalWidth: 20);
-        $text = $renderer->render(new RuntimeException("bad\x1b[2Jmessage"))->content;
+        $text = $renderer->render(new ErrorOccurrence(new RuntimeException("bad\x1b[2Jmessage"), 'ERR-test'), \Componenta\Error\Context\CliContext::fromArgv())->content;
         self::assertStringNotContainsString("\x1b", $text);
         self::assertStringContainsString('bad', $text);
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Handler;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\ErrorContextInterface;
@@ -12,6 +13,7 @@ use Componenta\Error\Event\ErrorListener;
 use Componenta\Error\Event\ErrorListenerProvider;
 use Componenta\Error\Handler\HttpErrorHandler;
 use Componenta\Error\Reporter\ErrorReporter;
+use Componenta\Error\Reporter\Policy\NonReportableErrors;
 use Componenta\Error\Tests\Fixture\HttpErrorHandlerStub;
 use InvalidArgumentException;
 use LogicException;
@@ -44,8 +46,8 @@ final class HttpErrorHandlerTest extends TestCase
 
         $context = new HttpContext(new ServerRequest('GET', '/'));
 
-        self::assertSame(400, $handler->handle(new InvalidArgumentException(), $context)->getStatusCode());
-        self::assertSame(503, $handler->handle(new RuntimeException(), $context)->getStatusCode());
+        self::assertSame(400, $handler->handle(new ErrorOccurrence(new InvalidArgumentException(), 'ERR-test'), $context)->getStatusCode());
+        self::assertSame(503, $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $context)->getStatusCode());
     }
 
     public function testHandleReturnsResponseFromFallbackWhenNoGeneratorSupports(): void
@@ -60,7 +62,7 @@ final class HttpErrorHandlerTest extends TestCase
         ));
 
         $response = $handler->handle(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/')),
         );
 
@@ -77,7 +79,7 @@ final class HttpErrorHandlerTest extends TestCase
         $handler->addGenerator(new HttpErrorHandlerStub($factory->createResponse(201)), priority: 100);
 
         $response = $handler->handle(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/')),
         );
 
@@ -88,12 +90,11 @@ final class HttpErrorHandlerTest extends TestCase
     {
         $factory = new Psr17Factory();
         $reported = [];
-        $listeners = new ErrorListenerProvider();
-        $listeners->addListener(ErrorListener::createFrom(
+        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
                 $reported[] = $event;
             },
-        ));
+        )]);
 
         $handler = new HttpErrorHandler(
             new HttpErrorHandlerStub($factory->createResponse(500)),
@@ -101,24 +102,23 @@ final class HttpErrorHandlerTest extends TestCase
         );
 
         $response = $handler->handle(
-            $exception = new RuntimeException(),
+            new ErrorOccurrence($exception = new RuntimeException(), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/')),
         );
 
         self::assertCount(1, $reported);
-        self::assertSame($exception, $reported[0]->exception);
+        self::assertSame($exception, $reported[0]->error->exception);
         self::assertSame($response->getStatusCode(), $reported[0]->context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::HTTP_STATUS_CODE));
-        self::assertNotSame('', $reported[0]->errorId);
+        self::assertNotSame('', $reported[0]->error->id);
     }
 
     public function testReportSkipsWhenStringFilterMatches(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported, $reporter);
-        $reporter->addNonReportableError(RuntimeException::class);
+        $handler = $this->handlerWithReporter($reported, new NonReportableErrors([RuntimeException::class]));
 
-        $handler->handle(new RuntimeException(), $this->context());
-        $handler->handle($shouldReport = new InvalidArgumentException(), $this->context());
+        $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence($shouldReport = new InvalidArgumentException(), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -126,12 +126,11 @@ final class HttpErrorHandlerTest extends TestCase
     public function testReportSkipsWhenArrayFilterMatches(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported, $reporter);
-        $reporter->addNonReportableError([RuntimeException::class, InvalidArgumentException::class]);
+        $handler = $this->handlerWithReporter($reported, new NonReportableErrors([[RuntimeException::class, InvalidArgumentException::class]]));
 
-        $handler->handle(new RuntimeException(), $this->context());
-        $handler->handle(new InvalidArgumentException(), $this->context());
-        $handler->handle($shouldReport = new LogicException(), $this->context());
+        $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence(new InvalidArgumentException(), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence($shouldReport = new LogicException(), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -139,14 +138,11 @@ final class HttpErrorHandlerTest extends TestCase
     public function testReportSkipsWhenCallableFilterReturnsTrue(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported, $reporter);
-        $reporter->addNonReportableError(
-            static fn(Throwable $e, ErrorContextInterface $c): bool => $e->getCode() < 500,
-        );
+        $handler = $this->handlerWithReporter($reported, new NonReportableErrors([static fn(ErrorOccurrence $e, ErrorContextInterface $c): bool => $e->exception->getCode() < 500]));
 
-        $handler->handle(new RuntimeException('client error', 400), $this->context());
-        $handler->handle(new RuntimeException('not found', 404), $this->context());
-        $handler->handle($shouldReport = new RuntimeException('server error', 500), $this->context());
+        $handler->handle(new ErrorOccurrence(new RuntimeException('client error', 400), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence(new RuntimeException('not found', 404), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence($shouldReport = new RuntimeException('server error', 500), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -158,9 +154,9 @@ final class HttpErrorHandlerTest extends TestCase
             new HttpErrorHandlerStub($factory->createResponse(500)),
         );
 
-        self::assertTrue($handler->supports(new RuntimeException(), $this->context()));
+        self::assertTrue($handler->supports(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $this->context()));
         self::assertFalse($handler->supports(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new CliContext(new ArrayInput([]), new BufferedOutput()),
         ));
     }
@@ -168,17 +164,16 @@ final class HttpErrorHandlerTest extends TestCase
     /**
      * @param list<Throwable> $reported
      */
-    private function handlerWithReporter(array &$reported, ?ErrorReporter &$reporter): HttpErrorHandler
+    private function handlerWithReporter(array &$reported, NonReportableErrors $policy): HttpErrorHandler
     {
         $factory = new Psr17Factory();
-        $listeners = new ErrorListenerProvider();
-        $listeners->addListener(ErrorListener::createFrom(
+        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
-                $reported[] = $event->exception;
+                $reported[] = $event->error->exception;
             },
-        ));
+        )]);
 
-        $reporter = new ErrorReporter($listeners);
+        $reporter = new ErrorReporter($listeners, $policy);
         return new HttpErrorHandler(
             new HttpErrorHandlerStub($factory->createResponse(500)),
             $reporter,

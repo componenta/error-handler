@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
-use Throwable;
+use Componenta\Error\ErrorOccurrence;
 
 /**
  * HTML error renderer with styled output
@@ -29,12 +29,13 @@ readonly class HtmlRenderer implements ErrorRendererInterface
     /**
      * Render exception as HTML
      *
-     * @param Throwable $exception Exception to render
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
+        $exception = $error->exception;
         $type = htmlspecialchars($exception::class, ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
         $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
         $code = htmlspecialchars((string) $exception->getCode(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
@@ -122,11 +123,11 @@ HTML;
     /**
      * Check if renderer supports the exception
      *
-     * @param Throwable $exception Exception to check
+     * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
      * @return true Always returns true
      */
-    public function supports(Throwable $exception, ErrorContextInterface $context): true
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): true
     {
         return true;
     }

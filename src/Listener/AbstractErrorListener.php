@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Listener;
 
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorListenerInterface;
 
 /**
@@ -27,7 +28,7 @@ abstract readonly class AbstractErrorListener implements ErrorListenerInterface
         return [];
     }
 
-    public function supports(\Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         $supported = $this->getSupportedExceptions();
 
@@ -35,6 +36,6 @@ abstract readonly class AbstractErrorListener implements ErrorListenerInterface
             return true;
         }
 
-        return array_any($supported, static fn($class) => $exception instanceof $class);
+        return array_any($supported, static fn($class) => $error->exception instanceof $class);
     }
 }

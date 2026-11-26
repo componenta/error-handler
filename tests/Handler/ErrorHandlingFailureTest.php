@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Handler;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\ErrorId\ErrorIdGeneratorInterface;
+use Componenta\Error\ErrorOccurrenceFactory;
+use Componenta\Error\Reporter\Policy\NonReportableErrors;
 use Componenta\Error\Handler\HttpErrorHandler;
 use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Reporter\ErrorReporterInterface;
@@ -28,22 +31,20 @@ final class ErrorHandlingFailureTest extends TestCase
         $id = $this->createStub(ErrorIdGeneratorInterface::class);
         $id->method('generate')->willThrowException(new RuntimeException('broken generator'));
         $reported = [];
-        $listeners = new \Componenta\Error\Event\ErrorListenerProvider();
-        $listeners->addListener(ErrorListener::createFrom(static function (ErrorEventInterface $event) use (&$reported): void {
+        $listeners = new \Componenta\Error\Event\ErrorListenerProvider([ErrorListener::createFrom(static function (ErrorEventInterface $event) use (&$reported): void {
             $reported[] = $event;
-        }));
+        })]);
 
-        $reporter = new ErrorReporter($listeners);
-        $reporter->addNonReportableError(static fn () => throw new RuntimeException('broken filter'));
-        $handler = HttpErrorHandler::createDefaults(new Psr17Factory(), $renderer, $reporter, $id);
-        $response = $handler->handle($original, new HttpContext(new ServerRequest('GET', '/')));
+        $reporter = new ErrorReporter($listeners, new NonReportableErrors([static fn () => throw new RuntimeException('broken filter')]));
+        $handler = HttpErrorHandler::createDefaults(new Psr17Factory(), $renderer, $reporter);
+        $response = $handler->handle((new ErrorOccurrenceFactory($id))->create($original), new HttpContext(new ServerRequest('GET', '/')));
 
         self::assertSame(500, $response->getStatusCode());
         self::assertCount(1, $reported);
-        self::assertSame($original, $reported[0]->exception);
-        $errorId = $reported[0]->errorId;
+        self::assertSame($original, $reported[0]->error->exception);
+        $errorId = $reported[0]->error->id;
         self::assertIsString($errorId);
-        self::assertMatchesRegularExpression('/^ERR-[0-9A-F]{32}-[0-9]+$/', $errorId);
+        self::assertMatchesRegularExpression('/^ERR-[0-9A-F]{32}$/', $errorId);
         self::assertSame("An unexpected error occurred\nError ID: " . $errorId, (string) $response->getBody());
         self::assertSame($errorId, $response->getHeaderLine('X-Error-ID'));
     }
@@ -53,7 +54,7 @@ final class ErrorHandlingFailureTest extends TestCase
         $reporter = $this->createStub(ErrorReporterInterface::class);
         $reporter->method('report')->willThrowException(new RuntimeException('broken reporter'));
         $handler = HttpErrorHandler::createDefaults(new Psr17Factory(), reporter: $reporter);
-        $response = $handler->handle(new RuntimeException('original'), new HttpContext(new ServerRequest('GET', '/')));
+        $response = $handler->handle(new ErrorOccurrence(new RuntimeException('original'), 'ERR-test'), new HttpContext(new ServerRequest('GET', '/')));
 
         self::assertSame(500, $response->getStatusCode());
         self::assertStringNotContainsString('broken reporter', (string) $response->getBody());

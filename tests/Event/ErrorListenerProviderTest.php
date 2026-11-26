@@ -4,147 +4,75 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Event;
 
-use Componenta\Error\Context\HttpContext;
-use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\Context\CliContext;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
 use Componenta\Error\Event\ErrorListenerProvider;
-use Nyholm\Psr7\ServerRequest;
-use PHPUnit\Framework\Attributes\TestDox;
+use Componenta\Error\Reporter\ErrorReporter;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-#[TestDox('ErrorListenerProvider')]
 final class ErrorListenerProviderTest extends TestCase
 {
     public function testGetListenersReturnsListenersSortedByPriorityDescending(): void
     {
-        $order = [];
+        $low = ErrorListener::createFrom(static function (): void {});
+        $high = ErrorListener::createFrom(static function (): void {});
+        $medium = ErrorListener::createFrom(static function (): void {});
+        $provider = new ErrorListenerProvider([
+            $low,
+            ['listener' => $high, 'priority' => 100],
+            ['listener' => $medium, 'priority' => 50],
+        ]);
 
-        $provider = new ErrorListenerProvider();
-        $provider->addListener(ErrorListener::createFrom(
-            function () use (&$order): void {
-                $order[] = 'low';
-            }
-        ));
-        $provider->addListener(ErrorListener::createFrom(
-            function () use (&$order): void {
-                $order[] = 'high';
-            }
-        ), priority: 100);
-        $provider->addListener(ErrorListener::createFrom(
-            function () use (&$order): void {
-                $order[] = 'medium';
-            }
-        ), priority: 50);
-
-        foreach ($provider->getListeners() as $listener) {
-            $listener->handleEvent($this->createStub(ErrorEventInterface::class));
-        }
-
-        self::assertSame(['high', 'medium', 'low'], $order);
+        self::assertSame([$high, $medium, $low], iterator_to_array($provider->getListeners()));
     }
 
-    public function testMergeAddsListenersFromAnotherProvider(): void
+    public function testEqualPrioritiesRetainOrderAndDuplicatesUseFirstRegistration(): void
+    {
+        $first = ErrorListener::createFrom(static function (): void {});
+        $second = ErrorListener::createFrom(static function (): void {});
+        $third = ErrorListener::createFrom(static function (): void {});
+        $provider = new ErrorListenerProvider([
+            $first,
+            $second,
+            ['listener' => $first, 'priority' => 100],
+            ['listener' => $third, 'priority' => -1],
+        ]);
+
+        self::assertSame([$first, $second, $third], iterator_to_array($provider->getListeners()));
+        self::assertSame([$first, $second, $third], iterator_to_array($provider->getListeners()));
+    }
+
+    public function testListenerSelectionBelongsToReporterNotProvider(): void
     {
         $order = [];
+        $runtime = ErrorListener::createFrom(static function () use (&$order): void {
+            $order[] = 'runtime';
+        }, RuntimeException::class);
+        $invalid = ErrorListener::createFrom(static function () use (&$order): void {
+            $order[] = 'invalid';
+        }, InvalidArgumentException::class);
+        $all = ErrorListener::createFrom(static function () use (&$order): void {
+            $order[] = 'all';
+        });
+        $provider = new ErrorListenerProvider([$runtime, $invalid, $all]);
+        self::assertSame([$runtime, $invalid, $all], iterator_to_array($provider->getListeners()));
 
-        $provider1 = new ErrorListenerProvider();
-        $provider1->addListener(ErrorListener::createFrom(
-            function () use (&$order): void {
-                $order[] = 'first';
-            }
-        ));
+        (new ErrorReporter($provider))->report(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv());
 
-        $provider2 = new ErrorListenerProvider();
-        $provider2->addListener(ErrorListener::createFrom(
-            function () use (&$order): void {
-                $order[] = 'second';
-            }
-        ));
-
-        $provider1->merge($provider2);
-
-        foreach ($provider1->getListeners() as $listener) {
-            $listener->handleEvent($this->createStub(ErrorEventInterface::class));
-        }
-
-        self::assertCount(2, $order);
-        self::assertContains('first', $order);
-        self::assertContains('second', $order);
+        self::assertSame(['runtime', 'all'], $order);
     }
 
-    public function testMergeDoesNotDuplicateSameListenerInstance(): void
+    public function testProviderDoesNotRetainTheMutableInputArray(): void
     {
-        $called = 0;
-        $listener = ErrorListener::createFrom(
-            static function () use (&$called): void {
-                $called++;
-            },
-        );
+        $listener = ErrorListener::createFrom(static function (): void {});
+        $source = [$listener];
+        $provider = new ErrorListenerProvider($source);
+        $source[] = ErrorListener::createFrom(static function (): void {});
 
-        $provider1 = new ErrorListenerProvider();
-        $provider1->addListener($listener);
-
-        $provider2 = new ErrorListenerProvider();
-        $provider2->addListener($listener);
-
-        $provider1->merge($provider2);
-
-        foreach ($provider1->getListeners() as $mergedListener) {
-            $mergedListener->handleEvent($this->createStub(ErrorEventInterface::class));
-        }
-
-        self::assertSame(1, $called);
-    }
-
-    public function testCreateFromReturnsProvidedProvider(): void
-    {
-        $provider = new ErrorListenerProvider();
-
-        $result = ErrorListenerProvider::createFrom($provider);
-
-        self::assertNotSame($provider, $result);
-    }
-
-    public function testProvideForReturnsOnlyListenersThatSupportException(): void
-    {
-        $order = [];
-
-        $provider = new ErrorListenerProvider();
-
-        $provider->addListener(ErrorListener::createFrom(
-            function () use (&$order): void {
-                $order[] = 'runtime';
-            },
-            fn (\Throwable $e, ErrorContextInterface $c): bool => $e instanceof RuntimeException,
-        ));
-
-        $provider->addListener(ErrorListener::createFrom(
-            function () use (&$order): void {
-                $order[] = 'invalid';
-            },
-            fn (\Throwable $e, ErrorContextInterface $c): bool => $e instanceof \InvalidArgumentException,
-        ));
-
-        $provider->addListener(ErrorListener::createFrom(
-            function () use (&$order): void {
-                $order[] = 'all';
-            },
-        ));
-
-        $context = new HttpContext(new ServerRequest('GET', '/'));
-
-        $listeners = $provider->provideFor(new RuntimeException(), $context);
-
-        self::assertCount(2, $listeners);
-
-        foreach ($listeners as $listener) {
-            $listener->handleEvent($this->createStub(ErrorEventInterface::class));
-        }
-
-        self::assertContains('runtime', $order);
-        self::assertContains('all', $order);
-        self::assertNotContains('invalid', $order);
+        self::assertSame([$listener], iterator_to_array($provider->getListeners()));
     }
 }

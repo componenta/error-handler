@@ -7,12 +7,11 @@ namespace Componenta\Error\Handler;
 use Componenta\Error\ConfigKey;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\ErrorId\ErrorIdGeneratorInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Http\HttpErrorResponseGeneratorInterface;
-use Componenta\Error\ErrorId\RandomErrorIdGenerator;
 use Componenta\Error\Http\HttpErrorResponseGenerator;
 use Componenta\Error\Reporter\ErrorReporter;
 use Psr\Http\Message\ResponseFactoryInterface;
@@ -20,14 +19,11 @@ use Psr\Http\Message\ResponseInterface;
 use Throwable;
 use Componenta\Error\Http\EmergencyHttpResponseGenerator;
 use Componenta\Error\Internal\FailureLog;
-use Componenta\Error\Internal\ErrorCorrelation;
-use Componenta\Error\Reporter\ListenerExceptionPolicy;
 
 final class HttpErrorHandler implements HttpErrorHandlerInterface
 {
     public const string FALLBACK_GENERATOR = ConfigKey::HTTP_FALLBACK_GENERATOR;
     public const string RENDERER = ConfigKey::HTTP_RENDERER;
-    public const string LISTENERS = ConfigKey::HTTP_LISTENERS;
     public const string GENERATORS = ConfigKey::HTTP_GENERATORS;
 
     /**
@@ -41,7 +37,6 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
         ResponseFactoryInterface $responseFactory,
         ?ErrorRendererInterface $renderer = null,
         ?ErrorReporterInterface $reporter = null,
-        ?ErrorIdGeneratorInterface $errorIdGenerator = null,
     ): self {
         $generator = new HttpErrorResponseGenerator(
             responseFactory: $responseFactory,
@@ -51,7 +46,6 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
         return new self(
             fallbackGenerator: $generator,
             reporter: $reporter ?? new ErrorReporter(),
-            errorIdGenerator: $errorIdGenerator ?? new RandomErrorIdGenerator(),
             emergencyGenerator: new EmergencyHttpResponseGenerator($responseFactory),
         );
     }
@@ -59,9 +53,7 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
     public function __construct(
         private readonly HttpErrorResponseGeneratorInterface $fallbackGenerator,
         private readonly ErrorReporterInterface $reporter = new ErrorReporter(),
-        private readonly ErrorIdGeneratorInterface $errorIdGenerator = new RandomErrorIdGenerator(),
         private readonly ?HttpErrorResponseGeneratorInterface $emergencyGenerator = null,
-        private readonly ListenerExceptionPolicy $reporterFailurePolicy = ListenerExceptionPolicy::Swallow,
     ) {
     }
 
@@ -71,19 +63,19 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
         $this->needsSort = true;
     }
 
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return $context instanceof HttpErrorContextInterface;
     }
 
-    public function handle(Throwable $exception, HttpErrorContextInterface $context): ResponseInterface
+    public function handle(ErrorOccurrence $error, HttpErrorContextInterface $context): ResponseInterface
     {
-        [$context, $errorId] = ErrorCorrelation::assign($exception, $context, $this->errorIdGenerator);
+        $exception = $error->exception;
 
         $selected = null;
         try {
-            $selected = $this->getGenerator($exception, $context);
-            $response = $selected->generate($exception, $context);
+            $selected = $this->getGenerator($error, $context);
+            $response = $selected->generate($error, $context);
         } catch (Throwable $failure) {
             FailureLog::write('HTTP response generation', $failure, $exception);
             $emergency = $this->emergencyGenerator
@@ -92,11 +84,11 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
                 if ($emergency === null || $emergency === $selected) {
                     throw $exception;
                 }
-                $response = $emergency->generate($exception, $context);
+                $response = $emergency->generate($error, $context);
             } catch (Throwable $secondary) {
                 FailureLog::write('emergency response', $secondary, $exception);
                 try {
-                    $this->reporter->report($exception, $context, errorId: $errorId);
+                    $this->reporter->report($error, $context);
                 } catch (Throwable $reportingFailure) {
                     FailureLog::write('reporting', $reportingFailure, $exception);
                 }
@@ -106,19 +98,14 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
 
         try {
             $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $response->getStatusCode());
-            if ($errorId !== null) {
-                $response = $response->withHeader('X-Error-ID', $errorId);
-            }
+            $response = $response->withHeader('X-Error-ID', $error->id);
         } catch (Throwable $failure) {
             FailureLog::write('HTTP error metadata', $failure, $exception);
         }
 
         try {
-            $this->reporter->report($exception, $context, $errorId);
+            $this->reporter->report($error, $context);
         } catch (Throwable $failure) {
-            if ($this->reporterFailurePolicy === ListenerExceptionPolicy::Throw) {
-                throw $failure;
-            }
             FailureLog::write('reporting', $failure, $exception);
         }
 
@@ -126,13 +113,13 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
     }
 
     private function getGenerator(
-        Throwable $exception,
+        ErrorOccurrence $error,
         ErrorContextInterface $context,
     ): HttpErrorResponseGeneratorInterface {
         $this->sortGenerators();
 
         foreach ($this->generators as ['generator' => $generator]) {
-            if ($generator->supports($exception, $context)) {
+            if ($generator->supports($error, $context)) {
                 return $generator;
             }
         }

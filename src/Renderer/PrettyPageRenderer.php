@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
@@ -153,7 +154,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
     /**
      * Check if this renderer supports the given exception and context
      */
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         return $context instanceof HttpErrorContextInterface;
     }
@@ -161,18 +162,18 @@ final class PrettyPageRenderer implements ErrorRendererInterface
     /**
      * Render exception as HTML string
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
         if (!$context instanceof HttpErrorContextInterface) {
             throw new \InvalidArgumentException('PrettyPageRenderer requires HTTP error context.');
         }
 
         if (!$this->debug) {
-            return (new SafeRenderer())->render($exception, $context);
+            return (new SafeRenderer())->render($error, $context);
         }
 
         // Prepare template payload
-        $payload = $this->buildPayload($exception, $context);
+        $payload = $this->buildPayload($error, $context);
 
         // Render template
         return new RenderedError($this->renderTemplate($payload), 'text/html; charset=utf-8');
@@ -183,8 +184,9 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      *
      * @return array<string, mixed>
      */
-    private function buildPayload(Throwable $exception, HttpErrorContextInterface $context): array
+    private function buildPayload(ErrorOccurrence $error, HttpErrorContextInterface $context): array
     {
+        $exception = $error->exception;
         $request = $context->request;
         $serverParams = $request->getServerParams();
         $requestTime = $serverParams['REQUEST_TIME'] ?? null;
@@ -199,7 +201,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         return [
             // Config
             'debug' => $this->debug,
-            'errorId' => \Componenta\Error\Internal\ErrorCorrelation::read($context),
+            'errorId' => $error->id,
             'applicationName' => $this->applicationName,
             'accentColor' => $this->accentColor,
             'errorColor' => $this->errorColor,

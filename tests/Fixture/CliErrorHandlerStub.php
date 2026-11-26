@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Fixture;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Componenta\Error\Handler\CliErrorHandlerInterface;
 use Componenta\Error\ErrorContextInterface;
@@ -26,26 +27,26 @@ final class CliErrorHandlerStub implements CliErrorHandlerInterface
     }
 
     public function handle(
-        Throwable $exception,
+        ErrorOccurrence $error,
         CliErrorContextInterface $context,
     ): void {
-        $this->handledExceptions[] = $exception;
-        $context->output->writeln($this->render($exception, $context));
+        $this->handledExceptions[] = $error->exception;
+        $context->output->writeln($this->render($error, $context));
     }
 
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(ErrorOccurrence $error, ErrorContextInterface $context): string
     {
         if (is_callable($this->renderOutput)) {
-            return ($this->renderOutput)($exception, $context);
+            return ($this->renderOutput)($error, $context);
         }
 
         return $this->renderOutput;
     }
 
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         if ($this->supportsException !== null) {
-            return $exception instanceof $this->supportsException;
+            return $error->exception instanceof $this->supportsException;
         }
         return $this->supports;
     }
@@ -53,7 +54,7 @@ final class CliErrorHandlerStub implements CliErrorHandlerInterface
     public static function renderer(callable|string $callable = ''): ErrorRendererInterface
     {
         if ($callable === '') {
-            $callable = static fn(Throwable $exception, ErrorContextInterface $context): string => $exception::class;
+            $callable = static fn(ErrorOccurrence $error, ErrorContextInterface $context): string => $error->exception::class;
         }
 
         return new ErrorRendererStub($callable);

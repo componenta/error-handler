@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Http;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Handler\HttpErrorHandler;
@@ -28,7 +29,7 @@ final class ResponseBoundaryTest extends TestCase
         $resolver->method('resolve')->willReturn(200);
         $generator = new HttpErrorResponseGenerator($factory, statusResolver: $resolver);
         $handler = new HttpErrorHandler($generator, emergencyGenerator: new EmergencyHttpResponseGenerator($factory));
-        $response = $handler->handle(new RuntimeException('original'), new HttpContext(new ServerRequest('GET', '/')));
+        $response = $handler->handle(new ErrorOccurrence(new RuntimeException('original'), 'ERR-test'), new HttpContext(new ServerRequest('GET', '/')));
 
         self::assertSame(500, $response->getStatusCode());
         self::assertNotEmpty($response->getHeaderLine('X-Error-ID'));
@@ -38,22 +39,23 @@ final class ResponseBoundaryTest extends TestCase
     {
         $error = new UpgradeRequiredException('websocket');
         $request = (new ServerRequest('GET', '/'))->withProtocolVersion('1.1');
-        $response = (new HttpErrorResponseGenerator(new Psr17Factory()))->generate($error, new HttpContext($request));
+        $response = (new HttpErrorResponseGenerator(new Psr17Factory()))->generate(new ErrorOccurrence($error, 'ERR-test'), new HttpContext($request));
 
         self::assertSame(426, $response->getStatusCode());
         self::assertSame('websocket', $response->getHeaderLine('Upgrade'));
         self::assertSame('Upgrade', $response->getHeaderLine('Connection'));
     }
 
-    public function testEmergencyResponseDoesNotRequireReadableCorrelationAttribute(): void
+    public function testEmergencyResponseDoesNotRequireReadableContextAttributes(): void
     {
         $context = $this->createStub(HttpErrorContextInterface::class);
         $context->method(PropertyHook::get('request'))->willReturn(new ServerRequest('GET', '/'));
         $context->method('getAttribute')->willThrowException(new RuntimeException('unavailable context'));
-        $response = (new EmergencyHttpResponseGenerator(new Psr17Factory()))->generate(new RuntimeException(), $context);
+        $response = (new EmergencyHttpResponseGenerator(new Psr17Factory()))->generate(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $context);
 
         self::assertSame(500, $response->getStatusCode());
-        self::assertSame('An unexpected error occurred', (string) $response->getBody());
+        self::assertSame("An unexpected error occurred\nError ID: ERR-test", (string) $response->getBody());
+        self::assertSame('ERR-test', $response->getHeaderLine('X-Error-ID'));
     }
 
     public function testEmergencyResponseCompletesPartialStreamWrites(): void
@@ -68,8 +70,8 @@ final class ResponseBoundaryTest extends TestCase
         $factory = $this->createStub(ResponseFactoryInterface::class);
         $factory->method('createResponse')->willReturn((new Psr17Factory())->createResponse(500)->withBody($stream));
 
-        (new EmergencyHttpResponseGenerator($factory))->generate(new RuntimeException(), new HttpContext(new ServerRequest('GET', '/')));
+        (new EmergencyHttpResponseGenerator($factory))->generate(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), new HttpContext(new ServerRequest('GET', '/')));
 
-        self::assertSame('An unexpected error occurred', $written);
+        self::assertSame("An unexpected error occurred\nError ID: ERR-test", $written);
     }
 }

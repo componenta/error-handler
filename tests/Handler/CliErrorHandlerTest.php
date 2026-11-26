@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Tests\Handler;
 
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\ErrorContextInterface;
@@ -12,6 +13,7 @@ use Componenta\Error\Event\ErrorListener;
 use Componenta\Error\Event\ErrorListenerProvider;
 use Componenta\Error\Handler\CliErrorHandler;
 use Componenta\Error\Reporter\ErrorReporter;
+use Componenta\Error\Reporter\Policy\NonReportableErrors;
 use Componenta\Error\Tests\Fixture\CliErrorHandlerStub;
 use InvalidArgumentException;
 use LogicException;
@@ -39,10 +41,10 @@ final class CliErrorHandlerTest extends TestCase
         ));
 
         $output1 = new BufferedOutput();
-        $handler->handle(new InvalidArgumentException(), new CliContext(new ArrayInput([]), $output1));
+        $handler->handle(new ErrorOccurrence(new InvalidArgumentException(), 'ERR-test'), new CliContext(new ArrayInput([]), $output1));
 
         $output2 = new BufferedOutput();
-        $handler->handle(new RuntimeException(), new CliContext(new ArrayInput([]), $output2));
+        $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), new CliContext(new ArrayInput([]), $output2));
 
         self::assertStringContainsString('invalid argument', $output1->fetch());
         self::assertStringContainsString('runtime', $output2->fetch());
@@ -57,7 +59,7 @@ final class CliErrorHandlerTest extends TestCase
         ));
 
         $output = new BufferedOutput();
-        $handler->handle(new RuntimeException(), new CliContext(new ArrayInput([]), $output));
+        $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), new CliContext(new ArrayInput([]), $output));
 
         self::assertStringContainsString('fallback', $output->fetch());
     }
@@ -69,7 +71,7 @@ final class CliErrorHandlerTest extends TestCase
         $handler->addHandler(new CliErrorHandlerStub(renderOutput: 'high'), priority: 100);
 
         $output = new BufferedOutput();
-        $handler->handle(new RuntimeException(), new CliContext(new ArrayInput([]), $output));
+        $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), new CliContext(new ArrayInput([]), $output));
 
         self::assertStringContainsString('high', $output->fetch());
     }
@@ -77,12 +79,11 @@ final class CliErrorHandlerTest extends TestCase
     public function testHandleReportsExceptionWithErrorId(): void
     {
         $reported = [];
-        $listeners = new ErrorListenerProvider();
-        $listeners->addListener(ErrorListener::createFrom(
+        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
                 $reported[] = $event;
             },
-        ));
+        )]);
 
         $handler = new CliErrorHandler(
             new CliErrorHandlerStub(renderOutput: 'error'),
@@ -90,23 +91,22 @@ final class CliErrorHandlerTest extends TestCase
         );
 
         $handler->handle(
-            $exception = new RuntimeException(),
+            new ErrorOccurrence($exception = new RuntimeException(), 'ERR-test'),
             new CliContext(new ArrayInput([]), new BufferedOutput()),
         );
 
         self::assertCount(1, $reported);
-        self::assertSame($exception, $reported[0]->exception);
-        self::assertNotSame('', $reported[0]->errorId);
+        self::assertSame($exception, $reported[0]->error->exception);
+        self::assertNotSame('', $reported[0]->error->id);
     }
 
     public function testReportSkipsWhenStringFilterMatches(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported, $reporter);
-        $reporter->addNonReportableError(RuntimeException::class);
+        $handler = $this->handlerWithReporter($reported, new NonReportableErrors([RuntimeException::class]));
 
-        $handler->handle(new RuntimeException(), $this->context());
-        $handler->handle($shouldReport = new InvalidArgumentException(), $this->context());
+        $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence($shouldReport = new InvalidArgumentException(), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -114,12 +114,11 @@ final class CliErrorHandlerTest extends TestCase
     public function testReportSkipsWhenArrayFilterMatches(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported, $reporter);
-        $reporter->addNonReportableError([RuntimeException::class, InvalidArgumentException::class]);
+        $handler = $this->handlerWithReporter($reported, new NonReportableErrors([[RuntimeException::class, InvalidArgumentException::class]]));
 
-        $handler->handle(new RuntimeException(), $this->context());
-        $handler->handle(new InvalidArgumentException(), $this->context());
-        $handler->handle($shouldReport = new LogicException(), $this->context());
+        $handler->handle(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence(new InvalidArgumentException(), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence($shouldReport = new LogicException(), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -127,14 +126,11 @@ final class CliErrorHandlerTest extends TestCase
     public function testReportSkipsWhenCallableFilterReturnsTrue(): void
     {
         $reported = [];
-        $handler = $this->handlerWithReporter($reported, $reporter);
-        $reporter->addNonReportableError(
-            static fn(Throwable $e, ErrorContextInterface $c): bool => $e->getCode() < 500,
-        );
+        $handler = $this->handlerWithReporter($reported, new NonReportableErrors([static fn(ErrorOccurrence $e, ErrorContextInterface $c): bool => $e->exception->getCode() < 500]));
 
-        $handler->handle(new RuntimeException('client error', 400), $this->context());
-        $handler->handle(new RuntimeException('not found', 404), $this->context());
-        $handler->handle($shouldReport = new RuntimeException('server error', 500), $this->context());
+        $handler->handle(new ErrorOccurrence(new RuntimeException('client error', 400), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence(new RuntimeException('not found', 404), 'ERR-test'), $this->context());
+        $handler->handle(new ErrorOccurrence($shouldReport = new RuntimeException('server error', 500), 'ERR-test'), $this->context());
 
         self::assertSame([$shouldReport], $reported);
     }
@@ -143,9 +139,9 @@ final class CliErrorHandlerTest extends TestCase
     {
         $handler = new CliErrorHandler(new CliErrorHandlerStub());
 
-        self::assertTrue($handler->supports(new RuntimeException(), $this->context()));
+        self::assertTrue($handler->supports(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), $this->context()));
         self::assertFalse($handler->supports(
-            new RuntimeException(),
+            new ErrorOccurrence(new RuntimeException(), 'ERR-test'),
             new HttpContext(new ServerRequest('GET', '/')),
         ));
     }
@@ -153,16 +149,15 @@ final class CliErrorHandlerTest extends TestCase
     /**
      * @param list<Throwable> $reported
      */
-    private function handlerWithReporter(array &$reported, ?ErrorReporter &$reporter): CliErrorHandler
+    private function handlerWithReporter(array &$reported, NonReportableErrors $policy): CliErrorHandler
     {
-        $listeners = new ErrorListenerProvider();
-        $listeners->addListener(ErrorListener::createFrom(
+        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
-                $reported[] = $event->exception;
+                $reported[] = $event->error->exception;
             },
-        ));
+        )]);
 
-        $reporter = new ErrorReporter($listeners);
+        $reporter = new ErrorReporter($listeners, $policy);
         return new CliErrorHandler(
             new CliErrorHandlerStub(renderOutput: 'error'),
             $reporter,

@@ -8,6 +8,7 @@ use Throwable;
 use Closure;
 use Componenta\Error\Internal\ErrorPredicate;
 use Componenta\Error\ErrorContextInterface;
+use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListenerInterface;
 
@@ -25,13 +26,13 @@ final readonly class ErrorListener implements ErrorListenerInterface
     private Closure $callback;
 
     /**
-     * @var (Closure(Throwable, ErrorContextInterface): bool)|null
+     * @var (Closure(ErrorOccurrence, ErrorContextInterface): bool)|null
      */
     private ?Closure $supports;
 
     /**
      * @param callable(ErrorEventInterface): void $callback Listener callback
-     * @param class-string<Throwable>|class-string<Throwable>[]|callable(Throwable, ErrorContextInterface): bool|null $supports Exception filter
+     * @param class-string<Throwable>|class-string<Throwable>[]|callable(ErrorOccurrence, ErrorContextInterface): bool|null $supports Exception filter
      */
     private function __construct(
         callable $callback,
@@ -45,7 +46,7 @@ final readonly class ErrorListener implements ErrorListenerInterface
      * Create listener from callable
      *
      * @param callable(ErrorEventInterface): void $callback Listener callback
-     * @param class-string<Throwable>|class-string<Throwable>[]|callable(Throwable, ErrorContextInterface): bool|null $supports Exception filter
+     * @param class-string<Throwable>|class-string<Throwable>[]|callable(ErrorOccurrence, ErrorContextInterface): bool|null $supports Exception filter
      * @return self New listener instance
      */
     public static function createFrom(
@@ -60,14 +61,14 @@ final readonly class ErrorListener implements ErrorListenerInterface
      *
      * Returns true if no filter configured.
      *
-     * @param Throwable $exception Exception to check
+     * @param ErrorOccurrence $error Occurrence to check
      * @param ErrorContextInterface $context Context information
      * @return bool Whether this listener should handle the exception
      */
-    public function supports(Throwable $exception, ErrorContextInterface $context): bool
+    public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
         if ($this->supports !== null) {
-            return ($this->supports)($exception, $context);
+            return ($this->supports)($error, $context);
         }
 
         return true;
