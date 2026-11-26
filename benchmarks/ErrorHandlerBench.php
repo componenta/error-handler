@@ -6,6 +6,11 @@ namespace Componenta\Error\Benchmarks;
 
 use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
+use Componenta\Error\Context\ErrorContextAttribute;
+use Componenta\Error\Event\ErrorEvent;
+use Componenta\Error\Listener\Psr3ErrorListener;
+use Psr\Log\NullLogger;
+use DateTimeImmutable;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Event\ErrorListener;
 use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
@@ -41,6 +46,9 @@ final class ErrorHandlerBench
     private SafeRenderer $safe;
     private PrettyPageRenderer $pretty;
     private ConsoleErrorRenderer $console;
+    private ErrorEvent $logEvent;
+    private Psr3ErrorListener $psr3;
+    private Psr3ErrorListener $psr3WithException;
 
     public function setUp(): void
     {
@@ -61,6 +69,14 @@ final class ErrorHandlerBench
         $this->safe = new SafeRenderer();
         $this->pretty = new PrettyPageRenderer(includeSource: false);
         $this->console = new ConsoleErrorRenderer(colors: false, terminalWidth: 100);
+        $this->logEvent = new ErrorEvent(
+            $this->error,
+            $this->json->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, 500),
+            new DateTimeImmutable('2026-02-03T04:05:06+00:00'),
+        );
+        $logger = new NullLogger();
+        $this->psr3 = new Psr3ErrorListener($logger);
+        $this->psr3WithException = new Psr3ErrorListener($logger, includeException: true);
     }
 
     public function benchSuccessfulMiddleware(): void
@@ -96,6 +112,17 @@ final class ErrorHandlerBench
     public function benchConsole(): void
     {
         $this->console->render($this->error, $this->cli);
+    }
+
+    // Measure listener metadata preparation, not a particular backend's I/O.
+    public function benchPsr3Listener(): void
+    {
+        $this->psr3->handleEvent($this->logEvent);
+    }
+
+    public function benchPsr3ListenerWithException(): void
+    {
+        $this->psr3WithException->handleEvent($this->logEvent);
     }
 
     #[Bench\ParamProviders('provideFanOut')]
