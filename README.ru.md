@@ -110,12 +110,13 @@ try {
 - `JsonRenderer`
 - `HtmlRenderer`
 - `PrettyPageRenderer`
+- `SafeCliRenderer`
 - `PlainTextRenderer`
 - `ConsoleErrorRenderer`
 - `NullRenderer`
 - `CompositeErrorRenderer`
 
-Резервный HTTP-генератор использует `SafeRenderer`, а CLI-обработчик использует `PlainTextRenderer`, если приложение не настроило другие сервисы.
+Резервный HTTP-генератор использует `SafeRenderer`, а CLI-обработчик использует `SafeCliRenderer`, если приложение не настроило другие сервисы.
 
 Дополнительные интеграции рендереров находятся в отдельных пакетах:
 
@@ -196,3 +197,5 @@ $handler = HttpErrorHandler::createDefaults($responseFactory, reporter: $reporte
 ## Проверки
 
 `composer test` — unit-тесты Pest, `composer phpstan` — статический анализ, `composer benchmark` — PHPBench. Интеграция с DI 6 требует PHP 8.5: установите `composer require --dev 'componenta/di:^6.0@dev'` и выполните `composer test:integration`. CI также проверяет пять адаптеров рендеринга с текущей версией ядра.
+
+Стандартный обработчик командной строки использует `SafeCliRenderer`: общее сообщение и идентификатор ошибки. Для диагностики явно выбирайте `PlainTextRenderer` или `ConsoleErrorRenderer`; они выводят исходные сообщения исключений и не предназначены для недоверенных получателей.

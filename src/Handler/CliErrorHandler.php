@@ -12,7 +12,7 @@ use Componenta\Error\ErrorId\ErrorIdGeneratorInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Reporter\ErrorReporterInterface;
 use Componenta\Error\ErrorId\RandomErrorIdGenerator;
-use Componenta\Error\Renderer\PlainTextRenderer;
+use Componenta\Error\Renderer\SafeCliRenderer;
 use Componenta\Error\Reporter\ErrorReporter;
 use Throwable;
 use Componenta\Error\Internal\FailureLog;
@@ -40,7 +40,7 @@ final class CliErrorHandler implements CliErrorHandlerInterface
         ?ErrorIdGeneratorInterface $errorIdGenerator = null,
     ): self {
         return new self(
-            fallbackHandler: new RenderingCliErrorHandler($renderer ?? new PlainTextRenderer()),
+            fallbackHandler: new RenderingCliErrorHandler($renderer ?? new SafeCliRenderer()),
             reporter: $reporter ?? new ErrorReporter(),
             errorIdGenerator: $errorIdGenerator ?? new RandomErrorIdGenerator(),
         );

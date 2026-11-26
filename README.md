@@ -110,12 +110,13 @@ Built-in renderers:
 - `JsonRenderer`
 - `HtmlRenderer`
 - `PrettyPageRenderer`
+- `SafeCliRenderer`
 - `PlainTextRenderer`
 - `ConsoleErrorRenderer`
 - `NullRenderer`
 - `CompositeErrorRenderer`
 
-Fallback generators use safe defaults: HTTP uses `SafeRenderer`, CLI uses `PlainTextRenderer`.
+Fallback generators use safe defaults: HTTP uses `SafeRenderer`, CLI uses `SafeCliRenderer`.
 
 Additional renderer integrations live in separate packages:
 
@@ -196,3 +197,5 @@ Requires Config 4 and PHP 8.4 or later. Register listeners on `ErrorListenerProv
 ## Verification
 
 `composer test` runs unit tests with Pest. `composer phpstan` runs static analysis. `composer benchmark` runs PHPBench. The integration suite requires DI 6 (PHP 8.5); install it separately with `composer require --dev 'componenta/di:^6.0@dev'`, then run `composer test:integration`. The CI matrix also tests the five renderer adapters against the same core checkout.
+
+The default CLI handler uses `SafeCliRenderer` (generic message and correlation ID). Choose `PlainTextRenderer` or `ConsoleErrorRenderer` explicitly for diagnostic output; their exception messages are not suitable for untrusted recipients.

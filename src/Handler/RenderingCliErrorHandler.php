@@ -7,7 +7,7 @@ namespace Componenta\Error\Handler;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
-use Componenta\Error\Renderer\PlainTextRenderer;
+use Componenta\Error\Renderer\SafeCliRenderer;
 use Throwable;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -18,10 +18,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 readonly class RenderingCliErrorHandler implements CliErrorHandlerInterface
 {
     /**
-     * @param ErrorRendererInterface $renderer Renderer for exception output (defaults to PlainTextRenderer)
+     * @param ErrorRendererInterface $renderer Renderer for exception output (defaults to SafeCliRenderer)
      */
     public function __construct(
-        protected ErrorRendererInterface $renderer = new PlainTextRenderer(),
+        protected ErrorRendererInterface $renderer = new SafeCliRenderer(),
     ) {
     }
 

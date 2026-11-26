@@ -28,6 +28,9 @@ final class ContainerIntegrationTest extends TestCase
             new CliContext(new ArrayInput([]), $output),
         );
 
-        self::assertStringContainsString('configuration compatibility failure', $output->fetch());
+        $rendered = $output->fetch();
+        self::assertStringContainsString('An unexpected error occurred', $rendered);
+        self::assertStringContainsString('Error ID: ERR-', $rendered);
+        self::assertStringNotContainsString('configuration compatibility failure', $rendered);
     }
 }
