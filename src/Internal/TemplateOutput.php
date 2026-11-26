@@ -45,12 +45,13 @@ final class TemplateOutput
             while (ob_get_level() > $level) {
                 $before = ob_get_level();
                 $status = ob_get_status();
-                if (($status['flags'] & PHP_OUTPUT_HANDLER_REMOVABLE) === 0) {
+                $flags = $status['flags'] ?? 0;
+                if (!is_int($flags) || ($flags & PHP_OUTPUT_HANDLER_REMOVABLE) === 0) {
                     FailureLog::write('template output buffer', new RuntimeException('Non-removable template buffer.'));
                     break;
                 }
                 try {
-                    ob_end_clean();
+                    self::discardBuffer();
                 } catch (Throwable $failure) {
                     FailureLog::write('template output buffer', $failure);
                 }
@@ -59,5 +60,11 @@ final class TemplateOutput
                 }
             }
         }
+    }
+
+    /** @throws Throwable User-defined output handlers may throw during cleanup. */
+    private static function discardBuffer(): void
+    {
+        ob_end_clean();
     }
 }

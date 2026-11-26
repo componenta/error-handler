@@ -36,7 +36,7 @@ final class ResponseBoundaryTest extends TestCase
 
     public function testHttp11UpgradeExceptionRetainsRequiredProtocolHeader(): void
     {
-        $error = (new UpgradeRequiredException())->withHeader('Upgrade', 'websocket');
+        $error = new UpgradeRequiredException('websocket');
         $request = (new ServerRequest('GET', '/'))->withProtocolVersion('1.1');
         $response = (new HttpErrorResponseGenerator(new Psr17Factory()))->generate($error, new HttpContext($request));
 
