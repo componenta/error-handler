@@ -101,6 +101,50 @@ final class HttpErrorHandlerTest extends TestCase
         self::assertSame('ERR-redirect', $response->getHeaderLine('X-Error-ID'));
     }
 
+    public function testInterimResponseUsesEmergencyResponseAndReportsActualStatus(): void
+    {
+        $factory = new Psr17Factory();
+        $reported = [];
+        $reporter = new ErrorReporter(new ArrayErrorListenerProvider([Throwable::class => [ErrorListener::createFrom(
+            static function (ErrorEventInterface $event) use (&$reported): void { $reported[] = $event; },
+        )]]));
+        $handler = HttpErrorHandler::createDefaults($factory, reporter: $reporter);
+        $handler->addGenerator(new HttpErrorHandlerStub($factory->createResponse(103)));
+        $error = new ErrorOccurrence(new RuntimeException('original'), 'ERR-interim');
+
+        $response = $handler->handle($error, $this->context());
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame($error->id, $response->getHeaderLine('X-Error-ID'));
+        self::assertCount(1, $reported);
+        self::assertSame($error, $reported[0]->error);
+        self::assertSame(500, $reported[0]->context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::HTTP_STATUS_CODE));
+    }
+
+    public function testInvalidEmergencyResponsePreservesOriginalException(): void
+    {
+        $factory = new Psr17Factory();
+        $reported = [];
+        $reporter = new ErrorReporter(new ArrayErrorListenerProvider([Throwable::class => [ErrorListener::createFrom(
+            static function (ErrorEventInterface $event) use (&$reported): void { $reported[] = $event; },
+        )]]));
+        $handler = new HttpErrorHandler(
+            new HttpErrorHandlerStub($factory->createResponse(100)),
+            $reporter,
+            new HttpErrorHandlerStub($factory->createResponse(103)),
+        );
+        $original = new RuntimeException('original');
+        $error = new ErrorOccurrence($original, 'ERR-interim');
+        try {
+            $handler->handle($error, $this->context());
+            self::fail('Expected original exception.');
+        } catch (RuntimeException $caught) {
+            self::assertSame($original, $caught);
+        }
+        self::assertCount(1, $reported);
+        self::assertSame($error, $reported[0]->error);
+        self::assertNull($reported[0]->context->getAttribute(\Componenta\Error\Context\ErrorContextAttribute::HTTP_STATUS_CODE, null));
+    }
+
     public function testHandleReportsExceptionWithResponseStatusAndErrorId(): void
     {
         $factory = new Psr17Factory();

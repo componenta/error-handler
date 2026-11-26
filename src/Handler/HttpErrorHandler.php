@@ -72,6 +72,7 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
         try {
             $selected = $this->getGenerator($error, $context);
             $response = $selected->generate($error, $context);
+            $status = self::finalStatus($response);
         } catch (Throwable $failure) {
             FailureLog::write('HTTP response generation', $failure, $exception);
             $emergency = $this->emergencyGenerator
@@ -81,6 +82,7 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
                     throw $exception;
                 }
                 $response = $emergency->generate($error, $context);
+                $status = self::finalStatus($response);
             } catch (Throwable $secondary) {
                 FailureLog::write('emergency response', $secondary, $exception);
                 try {
@@ -93,7 +95,7 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
         }
 
         try {
-            $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $response->getStatusCode());
+            $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $status);
         } catch (Throwable $failure) {
             FailureLog::write('HTTP error context metadata', $failure, $exception);
         }
@@ -111,6 +113,16 @@ final class HttpErrorHandler implements HttpErrorHandlerInterface
         }
 
         return $response;
+    }
+
+    private static function finalStatus(ResponseInterface $response): int
+    {
+        $status = $response->getStatusCode();
+        if ($status < 200 || $status > 599) {
+            throw new \UnexpectedValueException('An HTTP error handler requires a final response status (200–599).');
+        }
+
+        return $status;
     }
 
     private function getGenerator(
