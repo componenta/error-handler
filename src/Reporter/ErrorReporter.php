@@ -24,7 +24,7 @@ final class ErrorReporter implements ErrorReporterInterface
 
     private bool $reportingOnMain = false;
 
-    /** @var WeakMap<Fiber, true>|null */
+    /** @var WeakMap<object, true>|null */
     private ?WeakMap $reportingFibers = null;
 
     public function __construct(
@@ -84,7 +84,7 @@ final class ErrorReporter implements ErrorReporterInterface
         }
     }
 
-    private function enter(?Fiber $fiber): bool
+    private function enter(?object $fiber): bool
     {
         if ($fiber === null) {
             if ($this->reportingOnMain) {
@@ -103,7 +103,7 @@ final class ErrorReporter implements ErrorReporterInterface
         return true;
     }
 
-    private function leave(?Fiber $fiber): void
+    private function leave(?object $fiber): void
     {
         if ($fiber === null) {
             $this->reportingOnMain = false;
