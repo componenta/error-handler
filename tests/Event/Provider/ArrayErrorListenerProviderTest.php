@@ -82,11 +82,11 @@ final class ArrayErrorListenerProviderTest extends TestCase
 
     public static function invalidRegistrations(): iterable
     {
-        yield ['wrong-key' => [\stdClass::class => []]];
-        yield ['numeric-key' => [[]]];
-        yield ['wrong-group' => [Throwable::class => 'invalid']];
-        yield ['wrong-listener' => [Throwable::class => ['invalid']]];
-        yield ['wrong-priority' => [Throwable::class => [['listener' => ErrorListener::createFrom(static function (): void {}), 'priority' => '100']]]];
+        yield 'wrong-key' => [[\stdClass::class => []]];
+        yield 'numeric-key' => [[[]]];
+        yield 'wrong-group' => [[Throwable::class => 'invalid']];
+        yield 'wrong-listener' => [[Throwable::class => ['invalid']]];
+        yield 'wrong-priority' => [[Throwable::class => [['listener' => ErrorListener::createFrom(static function (): void {}), 'priority' => '100']]]];
     }
 
     public function testEmptyProviderMatchesNothing(): void

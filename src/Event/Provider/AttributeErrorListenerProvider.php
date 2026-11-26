@@ -28,7 +28,7 @@ final readonly class AttributeErrorListenerProvider implements ErrorListenerProv
     private Closure $resolver;
 
     /**
-     * @param iterable<class-string<ErrorListenerInterface>> $classes
+     * @param iterable<mixed> $classes Concrete error listener class names.
      * @param Closure(class-string<ErrorListenerInterface>): ErrorListenerInterface $resolver
      */
     public function __construct(iterable $classes, Closure $resolver)
@@ -37,7 +37,7 @@ final readonly class AttributeErrorListenerProvider implements ErrorListenerProv
         $registrations = [];
         $seen = [];
         foreach ($classes as $class) {
-            if (!is_a($class, ErrorListenerInterface::class, true)) {
+            if (!is_string($class) || !is_a($class, ErrorListenerInterface::class, true)) {
                 throw new InvalidArgumentException('Expected an error listener class.');
             }
 

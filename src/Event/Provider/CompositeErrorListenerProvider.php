@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Event\Provider;
 
-use Componenta\Error\Event\ErrorListenerInterface;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Internal\FailureLog;
 use InvalidArgumentException;
 use Throwable;
-use UnexpectedValueException;
+use Componenta\Error\Internal\ListenerBoundary;
 
 /** Composes independent sources in declaration order, isolating source failures. */
 final readonly class CompositeErrorListenerProvider implements ErrorListenerProviderInterface
@@ -17,7 +16,7 @@ final readonly class CompositeErrorListenerProvider implements ErrorListenerProv
     /** @var list<ErrorListenerProviderInterface> */
     private array $providers;
 
-    /** @param iterable<ErrorListenerProviderInterface> $providers */
+    /** @param iterable<mixed> $providers Error listener provider instances. */
     public function __construct(iterable $providers = [])
     {
         $snapshot = [];
@@ -40,9 +39,7 @@ final readonly class CompositeErrorListenerProvider implements ErrorListenerProv
         foreach ($this->providers as $provider) {
             try {
                 foreach ($provider->provideFor($exception) as $listener) {
-                    if (!$listener instanceof ErrorListenerInterface) {
-                        throw new UnexpectedValueException('Provider must yield error listeners.');
-                    }
+                    $listener = ListenerBoundary::requireListener($listener);
                     if (!isset($seen[spl_object_id($listener)])) {
                         $seen[spl_object_id($listener)] = $listener;
                         yield $listener;

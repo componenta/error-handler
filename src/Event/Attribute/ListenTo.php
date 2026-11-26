@@ -12,13 +12,17 @@ use Throwable;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
 final readonly class ListenTo
 {
-    /** @param class-string<Throwable> $exception */
+    /** @var class-string<Throwable> */
+    public string $exception;
+
+    /** @param string $exception Throwable class or interface name. */
     public function __construct(
-        public string $exception,
+        string $exception,
         public int $priority = 0,
     ) {
         if (!is_a($exception, Throwable::class, true)) {
             throw new InvalidArgumentException('ListenTo requires a Throwable type.');
         }
+        $this->exception = $exception;
     }
 }

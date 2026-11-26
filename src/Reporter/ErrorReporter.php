@@ -9,8 +9,7 @@ use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
-use Componenta\Error\Event\ErrorListenerInterface;
-use UnexpectedValueException;
+use Componenta\Error\Internal\ListenerBoundary;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Internal\FailureLog;
 use Componenta\Error\Reporter\Policy\ErrorReportingPolicyInterface;
@@ -58,9 +57,7 @@ final class ErrorReporter implements ErrorReporterInterface
 
             foreach ($this->listeners->provideFor($error->exception) as $listener) {
                 try {
-                    if (!$listener instanceof ErrorListenerInterface) {
-                        throw new UnexpectedValueException('Provider must yield error listeners.');
-                    }
+                    $listener = ListenerBoundary::requireListener($listener);
                     if (isset($seen[spl_object_id($listener)])) {
                         continue;
                     }
