@@ -4,16 +4,16 @@
     "type": "library",
     "license": "MIT",
     "require": {
-        "php": "^8.4",
+        "componenta/config": "^4.0",
+        "componenta/http": "^1.0",
         "ext-mbstring": "*",
-        "componenta/config": "^3.0.0",
         "nyholm/psr7-server": "^1.1",
+        "php": "^8.4",
         "psr/container": "^2.0",
         "psr/http-factory": "^1.1",
         "psr/http-message": "^2.0",
         "psr/http-server-middleware": "^1.0",
-        "symfony/console": "^7.4 || ^8.0",
-        "componenta/http": "^1.0"
+        "symfony/console": "^7.4 || ^8.0"
     },
     "autoload": {
         "psr-4": {
@@ -28,7 +28,9 @@
     "require-dev": {
         "nyholm/psr7": "^1.8",
         "phpunit/phpunit": "^12.0",
-        "componenta/di": "^5.0.0"
+        "pestphp/pest": "^4.0",
+        "phpbench/phpbench": "^1.7",
+        "phpstan/phpstan": "^2.1"
     },
     "minimum-stability": "stable",
     "extra": {
@@ -38,7 +40,27 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "1.0.x-dev"
+            "dev-main": "2.0.x-dev",
+            "dev-refactor/error-handler-v2": "2.0.x-dev"
         }
-    }
+    },
+    "scripts": {
+        "test": "@php vendor/bin/pest --testsuite Unit",
+        "test:integration": "@php vendor/bin/pest --testsuite Integration",
+        "phpstan": "@php vendor/bin/phpstan analyse src --level=max --no-progress",
+        "benchmark": "@php vendor/bin/phpbench run --report=aggregate",
+        "lint": "find src tests benchmarks -type f \\( -name '*.php' -o -name '*.phtml' \\) -exec php -l {} \\;"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "audit": {
+            "ignore-abandoned": {
+                "doctrine/annotations": "Transitive PHPBench development dependency; benchmarks use attributes."
+            }
+        }
+    },
+    "prefer-stable": true
 }
