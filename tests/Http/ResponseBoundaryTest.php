@@ -146,6 +146,28 @@ final class ResponseBoundaryTest extends TestCase
         }
     }
 
+    public function testConnectionOptionsAndStaleRepresentationMetadataAreNotCopied(): void
+    {
+        $exception = (new \Componenta\Http\Exception\MethodNotAllowedException(['GET']))
+            ->withHeader('X-Transport-Only', 'private')
+            ->withHeader('X-Second-Hop', 'private')
+            ->withHeader('Connection', [' X-transport-only ', 'keep-alive, X-SECOND-HOP'])
+            ->withHeader('ETag', '"old"')
+            ->withHeader('Last-Modified', 'Tue, 01 Jan 2019 00:00:00 GMT')
+            ->withHeader('Content-Location', '/old-representation')
+            ->withHeader('X-End-To-End', 'retained');
+        $response = (new HttpErrorResponseGenerator(new Psr17Factory()))->generate(
+            new ErrorOccurrence($exception, 'ERR-fields'),
+            new HttpContext(new ServerRequest('POST', '/')),
+        );
+
+        foreach (['Connection', 'X-Transport-Only', 'X-Second-Hop', 'ETag', 'Last-Modified', 'Content-Location'] as $name) {
+            self::assertFalse($response->hasHeader($name), $name);
+        }
+        self::assertSame('GET', $response->getHeaderLine('Allow'));
+        self::assertSame('retained', $response->getHeaderLine('X-End-To-End'));
+    }
+
     public function testRepresentationDigestAndInapplicableContentRangeAreNotCopied(): void
     {
         $exception = (new \Componenta\Http\Exception\MethodNotAllowedException(['GET']))

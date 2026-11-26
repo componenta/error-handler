@@ -45,7 +45,20 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
         $response = $this->responseFactory->createResponse($statusCode);
 
         if ($exception instanceof HttpHeadersAwareInterface || $exception instanceof \Componenta\Http\Exception\HttpException) {
-            foreach ($exception->headers as $name => $value) {
+            $headers = $exception->headers;
+            $connectionFields = [];
+            foreach ($headers as $name => $value) {
+                if (strtolower($name) !== 'connection') {
+                    continue;
+                }
+                foreach ((array) $value as $line) {
+                    foreach (explode(',', $line) as $field) {
+                        $connectionFields[strtolower(trim($field))] = true;
+                    }
+                }
+            }
+
+            foreach ($headers as $name => $value) {
                 if (strtolower($name) === 'upgrade' && $statusCode === 426
                     && $context->request->getProtocolVersion() === '1.1') {
                     $response = $response->withHeader('Upgrade', $value)->withHeader('Connection', 'Upgrade');
@@ -56,10 +69,11 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
                 if ($field === 'content-range' && $statusCode !== 416) {
                     continue;
                 }
-                if (!in_array($field, [
+                if (!isset($connectionFields[$field]) && !in_array($field, [
                     'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
                     'connection', 'proxy-connection', 'keep-alive', 'te', 'trailer', 'upgrade', 'cache-control',
                     'content-digest', 'repr-digest', 'digest', 'content-md5',
+                    'etag', 'last-modified', 'content-location',
                     'x-content-type-options',
                 ], true)) {
                     $response = $response->withHeader($name, $value);
