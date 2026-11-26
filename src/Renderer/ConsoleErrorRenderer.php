@@ -30,7 +30,7 @@ use Throwable;
  * }
  * ```
  */
-final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
+final readonly class ConsoleErrorRenderer implements HttpErrorRendererInterface
 {
     // ═══════════════════════════════════════════════════════════════════════════
     // ANSI Codes
@@ -817,5 +817,10 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     public function supports(Throwable $exception, ErrorContextInterface $context): bool
     {
         return $context instanceof CliErrorContextInterface;
+    }
+
+    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
+    {
+        return new RenderedError($this->render($exception, $context), 'text/plain; charset=utf-8');
     }
 }

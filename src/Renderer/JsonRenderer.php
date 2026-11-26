@@ -13,7 +13,7 @@ use Throwable;
  *
  * Renders exceptions as JSON with optional debug information.
  */
-readonly class JsonRenderer implements ErrorRendererInterface
+readonly class JsonRenderer implements HttpErrorRendererInterface
 {
     /**
      * Create JSON renderer
@@ -105,5 +105,10 @@ readonly class JsonRenderer implements ErrorRendererInterface
         }
 
         return $chain;
+    }
+
+    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
+    {
+        return new RenderedError($this->render($exception, $context), 'application/json; charset=utf-8');
     }
 }

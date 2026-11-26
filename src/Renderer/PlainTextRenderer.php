@@ -13,7 +13,7 @@ use Throwable;
  *
  * Renders exceptions as plain text with optional debug information.
  */
-readonly class PlainTextRenderer implements ErrorRendererInterface
+readonly class PlainTextRenderer implements HttpErrorRendererInterface
 {
     /**
      * Create plain text renderer
@@ -98,5 +98,10 @@ readonly class PlainTextRenderer implements ErrorRendererInterface
         }
 
         return implode("\n", $lines);
+    }
+
+    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
+    {
+        return new RenderedError($this->render($exception, $context), 'text/plain; charset=utf-8');
     }
 }

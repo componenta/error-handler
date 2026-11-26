@@ -13,7 +13,7 @@ use Componenta\Error\Renderer\ErrorRendererInterface;
  *
  * Useful for testing, silent mode, or when only reporting is needed.
  */
-readonly class NullRenderer implements ErrorRendererInterface
+readonly class NullRenderer implements HttpErrorRendererInterface
 {
     /**
      * Render exception as empty string
@@ -37,5 +37,10 @@ readonly class NullRenderer implements ErrorRendererInterface
     public function supports(Throwable $exception, ErrorContextInterface $context): bool
     {
         return true;
+    }
+
+    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
+    {
+        return new RenderedError($this->render($exception, $context), 'text/plain; charset=utf-8');
     }
 }

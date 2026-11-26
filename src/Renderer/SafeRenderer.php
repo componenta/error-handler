@@ -17,7 +17,7 @@ use Componenta\Error\Context\HttpErrorContextInterface;
  * like stack traces, file paths, or internal error messages.
  * Automatically selects JSON or HTML format based on request headers.
  */
-readonly class SafeRenderer implements ErrorRendererInterface
+readonly class SafeRenderer implements HttpErrorRendererInterface
 {
     /**
      * Create safe renderer
@@ -44,13 +44,13 @@ readonly class SafeRenderer implements ErrorRendererInterface
      */
     public function render(Throwable $exception, ErrorContextInterface $context): string
     {
+        if ($context instanceof HttpErrorContextInterface) {
+            return $this->renderHttp($exception, $context)->body;
+        }
+
         $errorId = $context->getAttribute(ErrorContextAttribute::ERROR_ID, null);
         $errorId = is_string($errorId) ? $errorId : $this->generateErrorId();
         $statusCode = $this->getStatusCode($context);
-
-        if ($context instanceof HttpErrorContextInterface && $this->acceptsJson($context)) {
-            return $this->renderJson($errorId, $statusCode);
-        }
 
         return $this->renderHtml($errorId, $statusCode);
     }
@@ -179,12 +179,16 @@ readonly class SafeRenderer implements ErrorRendererInterface
         return is_int($statusCode) && $statusCode >= 400 && $statusCode < 600 ? $statusCode : 500;
     }
 
-    /**
-     * Check if request accepts JSON
-     */
-    private function acceptsJson(HttpErrorContextInterface $context): bool
+    public function renderHttp(Throwable $exception, HttpErrorContextInterface $context): RenderedError
     {
-        $accept = $context->request->getHeaderLine('Accept');
-        return str_contains($accept, 'application/json');
+        $errorId = $context->getAttribute(ErrorContextAttribute::ERROR_ID, null);
+        $errorId = is_string($errorId) ? $errorId : $this->generateErrorId();
+        $statusCode = $this->getStatusCode($context);
+
+        if (\Componenta\Error\Http\ErrorContentNegotiator::prefersJson($context->request->getHeaderLine('Accept'))) {
+            return new RenderedError($this->renderJson($errorId, $statusCode), 'application/json; charset=utf-8');
+        }
+
+        return new RenderedError($this->renderHtml($errorId, $statusCode), 'text/html; charset=utf-8');
     }
 }

@@ -73,7 +73,7 @@ final class HttpErrorResponseGeneratorTest extends TestCase
     {
         $generator = new HttpErrorResponseGenerator(
             new Psr17Factory(),
-            new ErrorRendererStub('{"message":"error"}'),
+            new \Componenta\Error\Renderer\JsonRenderer(),
         );
 
         $response = $generator->generate(

@@ -16,7 +16,7 @@ use Throwable;
  * Extracts error data and renders it using a template file.
  * Uses Highlight.js for syntax highlighting.
  */
-final class PrettyPageRenderer implements ErrorRendererInterface
+final class PrettyPageRenderer implements HttpErrorRendererInterface
 {
     private const int CONTEXT_LINES = 12;
     private const int DEFAULT_MAX_STRING_LENGTH = 200;
@@ -1008,5 +1008,10 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         }
 
         return round($bytes, 1) . ' ' . $units[$i];
+    }
+
+    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
+    {
+        return new RenderedError($this->render($exception, $context), 'text/html; charset=utf-8');
     }
 }

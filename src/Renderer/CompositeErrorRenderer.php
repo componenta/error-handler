@@ -15,7 +15,7 @@ use Throwable;
  * supports the given exception. Falls back to a default renderer
  * if no other renderer matches.
  */
-class CompositeErrorRenderer implements ErrorRendererInterface
+class CompositeErrorRenderer implements HttpErrorRendererInterface
 {
     /**
      * @var array<array{renderer: ErrorRendererInterface, priority: int}> Registered renderers
@@ -110,5 +110,14 @@ class CompositeErrorRenderer implements ErrorRendererInterface
             );
             $this->needsSort = false;
         }
+    }
+
+    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
+    {
+        $renderer = $this->getRenderer($exception, $context);
+
+        return $renderer instanceof HttpErrorRendererInterface
+            ? $renderer->renderHttp($exception, $context)
+            : new RenderedError($renderer->render($exception, $context), 'text/plain; charset=utf-8');
     }
 }

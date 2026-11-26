@@ -6,6 +6,8 @@ namespace Componenta\Error\Http;
 
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
+use Componenta\Error\Renderer\HttpErrorRendererInterface;
+use Componenta\Error\Renderer\RenderedError;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Renderer\SafeRenderer;
@@ -31,24 +33,21 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
     {
         $statusCode = $this->statusResolver->resolve($exception, $context);
         $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $statusCode);
-        $content = $this->renderer->render($exception, $context);
+        $rendered = $this->renderer instanceof HttpErrorRendererInterface
+            ? $this->renderer->renderHttp($exception, $context)
+            : new RenderedError($this->renderer->render($exception, $context), 'text/plain; charset=utf-8');
+
         $response = $this->responseFactory
             ->createResponse($statusCode)
-            ->withHeader('Content-Type', $this->getContentType($context));
+            ->withHeader('Content-Type', $rendered->contentType)
+            ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withAddedHeader('Vary', 'Accept');
 
-        $response->getBody()->write($content);
-
-        return $response;
-    }
-
-    private function getContentType(HttpErrorContextInterface $context): string
-    {
-        $accept = $context->request->getHeaderLine('Accept');
-
-        if (str_contains($accept, 'application/json')) {
-            return 'application/json; charset=utf-8';
+        if (strtoupper($context->request->getMethod()) !== 'HEAD') {
+            $response->getBody()->write($rendered->body);
         }
 
-        return 'text/html; charset=utf-8';
+        return $response;
     }
 }

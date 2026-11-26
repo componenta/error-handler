@@ -13,7 +13,7 @@ use Throwable;
  *
  * Renders exceptions as styled HTML pages with optional debug information.
  */
-readonly class HtmlRenderer implements ErrorRendererInterface
+readonly class HtmlRenderer implements HttpErrorRendererInterface
 {
     /**
      * Create HTML renderer
@@ -128,5 +128,10 @@ HTML;
     public function supports(Throwable $exception, ErrorContextInterface $context): true
     {
         return true;
+    }
+
+    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
+    {
+        return new RenderedError($this->render($exception, $context), 'text/html; charset=' . $this->charset);
     }
 }
