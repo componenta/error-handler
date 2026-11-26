@@ -496,6 +496,9 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             $reflection = new \ReflectionObject($exception);
 
             foreach ($reflection->getProperties() as $property) {
+                if (count($arguments) >= 64) {
+                    break;
+                }
                 $name = $property->getName();
 
                 // Skip standard properties
@@ -512,7 +515,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
 
                     $arguments[$name] = [
                         'type' => $this->getValueType($value),
-                        'value' => $this->formatValue($value),
+                        'value' => $this->formatValue(\Componenta\Error\Diagnostic\DiagnosticData::sanitize($value)),
                     ];
                 } catch (\Throwable) {
                     $arguments[$name] = [
@@ -538,7 +541,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
     {
         $formatted = [];
 
-        foreach ($args as $arg) {
+        foreach (array_slice($args, 0, 64) as $arg) {
             $formatted[] = [
                 'type' => $this->getValueType($arg),
                 'value' => \Componenta\Error\Diagnostic\DiagnosticData::REDACTED,
@@ -659,7 +662,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
      * @param array<array-key, mixed> $files
      * @return list<array{name: string, clientName: string, size: string, type: string, error: string}>
      */
-    private function formatUploadedFiles(array $files, int $depth = 0): array
+    private function formatUploadedFiles(array $files, int $depth = 0, int &$remaining = 1024): array
     {
         if ($depth >= 5) {
             return [];
@@ -667,12 +670,13 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         $formatted = [];
 
         foreach (array_slice($files, 0, 100, true) as $key => $file) {
-            if (count($formatted) >= 100) {
+            if (count($formatted) >= 100 || $remaining <= 0) {
                 break;
             }
+            --$remaining;
             if (is_array($file)) {
                 // Nested files
-                foreach ($this->formatUploadedFiles($file, $depth + 1) as $nested) {
+                foreach ($this->formatUploadedFiles($file, $depth + 1, $remaining) as $nested) {
                     $nested['name'] = $key . '[' . $nested['name'] . ']';
                     $formatted[] = $nested;
                 }
@@ -724,7 +728,15 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
             }
             $position = $body->tell();
             $body->rewind();
-            $content = $body->read($this->maxBodyLength + 1);
+            $content = '';
+            $limit = $this->maxBodyLength + 1;
+            while (!$body->eof() && strlen($content) < $limit) {
+                $chunk = $body->read($limit - strlen($content));
+                if ($chunk === '') {
+                    return null;
+                }
+                $content .= $chunk;
+            }
             if (strlen($content) > $this->maxBodyLength || !$body->eof()) {
                 return null;
             }

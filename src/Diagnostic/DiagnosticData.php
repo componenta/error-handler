@@ -16,31 +16,61 @@ final class DiagnosticData
         return preg_match('/password|passwd|passphrase|secret|token|apikey|authorization|cookie|session|credential|privatekey|signature|csrf|jwt|bearer|accesskey|clientsecret/', $name) === 1;
     }
 
+    /** Limits total traversal and string data, including shared and recursive arrays. */
     public static function sanitize(mixed $value, int $depth = 0): mixed
     {
+        $nodes = 1024;
+        $bytes = 262_144;
+
+        return self::walk($value, max(0, $depth), $nodes, $bytes);
+    }
+
+    private static function walk(mixed $value, int $depth, int &$nodes, int &$bytes): mixed
+    {
+        --$nodes;
         if (is_array($value)) {
             if ($depth >= 5) {
                 return '[depth limit]';
             }
+
             $result = [];
             $count = 0;
             foreach ($value as $key => $item) {
-                if ($count++ >= 100) {
+                if ($count++ >= 100 || $nodes <= 0 || $bytes <= 0) {
                     break;
                 }
-                $result[$key] = self::isSensitiveKey($key) ? self::REDACTED : self::sanitize($item, $depth + 1);
+
+                if (is_string($key)) {
+                    $keyLength = strlen($key);
+                    if ($keyLength > 256 || $keyLength > $bytes) {
+                        --$nodes;
+                        continue;
+                    }
+                    $bytes -= $keyLength;
+                }
+
+                if (self::isSensitiveKey($key)) {
+                    --$nodes;
+                    $result[$key] = self::REDACTED;
+                } else {
+                    $result[$key] = self::walk($item, $depth + 1, $nodes, $bytes);
+                }
             }
             return $result;
         }
 
         if (is_object($value)) {
-            return $value instanceof \SensitiveParameterValue ? self::REDACTED : $value::class;
+            $value = $value instanceof \SensitiveParameterValue ? self::REDACTED : $value::class;
         }
         if (is_resource($value)) {
             return '[resource]';
         }
-        if (is_string($value) && strlen($value) > 4096) {
-            return mb_strcut($value, 0, 4096, 'UTF-8') . '...';
+        if (is_string($value)) {
+            $limit = max(0, min(4096, $bytes));
+            if (strlen($value) > $limit) {
+                $value = mb_strcut($value, 0, $limit, 'UTF-8') . '...';
+            }
+            $bytes -= strlen($value);
         }
 
         return $value;
