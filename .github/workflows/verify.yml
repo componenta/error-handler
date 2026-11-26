@@ -5,6 +5,13 @@ on:
     branches: [refactor/error-handler-v2]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      adapter_ref:
+        description: Ref of the compatible renderer adapters
+        required: false
+        type: string
+        default: refactor/error-handler-v2
 
 permissions:
   contents: read
@@ -87,7 +94,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: componenta/error-renderer-${{ matrix.adapter }}
-          ref: refactor/error-handler-v2
+          ref: ${{ inputs.adapter_ref || 'refactor/error-handler-v2' }}
           path: adapter
       - uses: shivammathur/setup-php@v2
         with:
