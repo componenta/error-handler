@@ -61,6 +61,30 @@ final class AttributeErrorListenerProviderTest extends TestCase
         self::assertSame([GeneralListener::class, PhpErrorListener::class], array_map(get_class(...), iterator_to_array($provider->provideFor(new \TypeError()))));
     }
 
+    public function testCacheEvictionDoesNotRetainResolvedServices(): void
+    {
+        $calls = 0;
+        $provider = new AttributeErrorListenerProvider([RuntimeListener::class], static function () use (&$calls): ErrorListenerInterface {
+            ++$calls;
+            return new RuntimeListener();
+        });
+        $target = new RuntimeException();
+        $first = iterator_to_array($provider->provideFor($target));
+        $classes = [];
+        for ($i = 0; $i < 260; ++$i) {
+            $exception = eval('return new class extends \\LogicException {};');
+            $classes[$exception::class] = true;
+            self::assertSame([], iterator_to_array($provider->provideFor($exception)));
+        }
+        self::assertCount(260, $classes);
+        $second = iterator_to_array($provider->provideFor($target));
+        self::assertCount(1, $first);
+        self::assertCount(1, $second);
+        self::assertInstanceOf(RuntimeListener::class, $second[0]);
+        self::assertNotSame($first[0], $second[0]);
+        self::assertSame(2, $calls);
+    }
+
     public function testResolverFailureDoesNotDiscardRemainingMatches(): void
     {
         $listener = new RuntimeListener();

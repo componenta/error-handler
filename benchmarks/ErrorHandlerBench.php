@@ -45,6 +45,12 @@ final class ErrorHandlerBench
     private ErrorOccurrence $error;
     private SafeRenderer $safe;
     private PrettyPageRenderer $pretty;
+    private PrettyPageRenderer $prettyWithSource;
+    private HttpContext $largeContext;
+    private RequestHandlerInterface $failingNext;
+    private \Componenta\Error\Http\EmergencyHttpResponseGenerator $emergency;
+    /** @var array<int, ErrorReporter> */
+    private array $reporters;
     private ConsoleErrorRenderer $console;
     private ErrorEvent $logEvent;
     private Psr3ErrorListener $psr3;
@@ -68,6 +74,16 @@ final class ErrorHandlerBench
         $this->error = new ErrorOccurrence(new RuntimeException('benchmark error'), 'ERR-bench');
         $this->safe = new SafeRenderer();
         $this->pretty = new PrettyPageRenderer(includeSource: false);
+        $this->prettyWithSource = new PrettyPageRenderer();
+        $large = array_fill(0, 100, str_repeat('a', 4096));
+        $this->largeContext = new HttpContext((new ServerRequest('POST', '/'))->withQueryParams($large)->withParsedBody($large));
+        $this->emergency = new \Componenta\Error\Http\EmergencyHttpResponseGenerator($this->factory);
+        $this->failingNext = new class implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                throw new RuntimeException('benchmark failure');
+            }
+        };
         $this->console = new ConsoleErrorRenderer(colors: false, terminalWidth: 100);
         $this->logEvent = new ErrorEvent(
             $this->error,
@@ -77,11 +93,27 @@ final class ErrorHandlerBench
         $logger = new NullLogger();
         $this->psr3 = new Psr3ErrorListener($logger);
         $this->psr3WithException = new Psr3ErrorListener($logger, includeException: true);
+        $this->reporters = [];
+        foreach ([0, 1, 10, 100] as $size) {
+            $reporter = $this->newReporter($size);
+            $reporter->report($this->error, $this->json);
+            $this->reporters[$size] = $reporter;
+        }
     }
 
     public function benchSuccessfulMiddleware(): void
     {
         $this->middleware->process($this->html->request, $this->next);
+    }
+
+    public function benchMiddlewareException(): void
+    {
+        $this->middleware->process($this->json->request, $this->failingNext);
+    }
+
+    public function benchEmergencyResponse(): void
+    {
+        $this->emergency->generate($this->error, $this->json);
     }
 
     public function benchWarmHttpError(): void
@@ -109,6 +141,16 @@ final class ErrorHandlerBench
         $this->pretty->render($this->error, $this->html);
     }
 
+    public function benchPrettyHtmlWithSource(): void
+    {
+        $this->prettyWithSource->render($this->error, $this->html);
+    }
+
+    public function benchPrettyLargeData(): void
+    {
+        $this->pretty->render($this->error, $this->largeContext);
+    }
+
     public function benchConsole(): void
     {
         $this->console->render($this->error, $this->cli);
@@ -128,11 +170,22 @@ final class ErrorHandlerBench
     #[Bench\ParamProviders('provideFanOut')]
     public function benchReporter(array $params): void
     {
+        $this->reporters[$params['listeners']]->report($this->error, $this->json);
+    }
+
+    #[Bench\ParamProviders('provideFanOut')]
+    public function benchReporterConstructionAndDispatch(array $params): void
+    {
+        $this->newReporter($params['listeners'])->report($this->error, $this->json);
+    }
+
+    private function newReporter(int $size): ErrorReporter
+    {
         $listeners = [];
-        for ($i = 0; $i < $params['listeners']; $i++) {
+        for ($i = 0; $i < $size; $i++) {
             $listeners[] = ErrorListener::createFrom(static function (): void {});
         }
-        (new ErrorReporter(new ArrayErrorListenerProvider([\Throwable::class => $listeners])))->report($this->error, $this->json);
+        return new ErrorReporter(new ArrayErrorListenerProvider([\Throwable::class => $listeners]));
     }
 
     public function provideFanOut(): iterable

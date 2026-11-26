@@ -89,6 +89,27 @@ final class ArrayErrorListenerProviderTest extends TestCase
         yield 'wrong-priority' => [[Throwable::class => [['listener' => ErrorListener::createFrom(static function (): void {}), 'priority' => '100']]]];
     }
 
+    public function testRoutingRemainsEquivalentAfterCacheEviction(): void
+    {
+        $all = ErrorListener::createFrom(static function (): void {});
+        $specific = ErrorListener::createFrom(static function (): void {});
+        $registrations = [Throwable::class => [$all], RuntimeException::class => [['listener' => $specific, 'priority' => 10]]];
+        $provider = new ArrayErrorListenerProvider($registrations);
+        $target = new RuntimeException();
+        $expected = [$specific, $all];
+        self::assertSame($expected, iterator_to_array($provider->provideFor($target)));
+        $classes = [];
+        for ($i = 0; $i < 260; ++$i) {
+            // Each eval declaration creates a distinct anonymous Throwable class.
+            $exception = eval('return new class extends \\LogicException {};');
+            $classes[$exception::class] = true;
+            self::assertSame([$all], iterator_to_array($provider->provideFor($exception)));
+        }
+        self::assertCount(260, $classes);
+        self::assertSame($expected, iterator_to_array($provider->provideFor($target)));
+        self::assertSame($expected, iterator_to_array($provider->provideFor($target)));
+    }
+
     public function testEmptyProviderMatchesNothing(): void
     {
         self::assertSame([], iterator_to_array((new ArrayErrorListenerProvider())->provideFor(new RuntimeException())));

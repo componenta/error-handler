@@ -23,6 +23,8 @@ final class ListenerProviderBench
     private Throwable $exception;
     private Throwable $unmatched;
     private ArrayErrorListenerProvider $array;
+    private ArrayErrorListenerProvider $coldArray;
+    private AttributeErrorListenerProvider $coldAttribute;
     private AttributeErrorListenerProvider $attribute;
     private CompositeErrorListenerProvider $composite;
     private BenchmarkAttributedListener $listener;
@@ -49,15 +51,32 @@ final class ListenerProviderBench
             fn (): ErrorListenerInterface => $this->listener,
         );
         $this->composite = new CompositeErrorListenerProvider([$this->array, $this->attribute]);
+        $this->coldArray = new ArrayErrorListenerProvider($this->registrations);
+        $this->coldAttribute = new AttributeErrorListenerProvider(
+            [BenchmarkAttributedListener::class],
+            fn (): ErrorListenerInterface => $this->listener,
+        );
         // Prepare cache entries outside the measured warm operations.
         iterator_to_array($this->array->provideFor($this->exception));
         iterator_to_array($this->array->provideFor($this->unmatched));
         iterator_to_array($this->attribute->provideFor($this->exception));
     }
 
-    public function benchArrayCold(): void
+    public function benchArrayConstructionAndLookup(): void
     {
         iterator_to_array((new ArrayErrorListenerProvider($this->registrations))->provideFor($this->exception));
+    }
+
+    public function benchArrayConstruction(): void
+    {
+        new ArrayErrorListenerProvider($this->registrations);
+    }
+
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(10)]
+    public function benchArrayFirstLookup(): void
+    {
+        iterator_to_array($this->coldArray->provideFor($this->exception));
     }
 
     public function benchArrayWarm(): void
@@ -70,10 +89,22 @@ final class ListenerProviderBench
         iterator_to_array($this->array->provideFor($this->unmatched));
     }
 
-    public function benchAttributeCold(): void
+    public function benchAttributeConstructionAndLookup(): void
     {
         $provider = new AttributeErrorListenerProvider([BenchmarkAttributedListener::class], fn (): ErrorListenerInterface => $this->listener);
         iterator_to_array($provider->provideFor($this->exception));
+    }
+
+    public function benchAttributeConstruction(): void
+    {
+        new AttributeErrorListenerProvider([BenchmarkAttributedListener::class], fn (): ErrorListenerInterface => $this->listener);
+    }
+
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(10)]
+    public function benchAttributeFirstLookup(): void
+    {
+        iterator_to_array($this->coldAttribute->provideFor($this->exception));
     }
 
     public function benchAttributeWarm(): void
