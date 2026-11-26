@@ -169,6 +169,24 @@ A global exclusion rule prevents every listener from receiving the event. Indivi
 
 The default reporter continues if a policy fails, uses UTC system time if the injected clock fails, and isolates individual listener failures. ListenerExceptionPolicy::Throw is an explicit direct-reporter option; HTTP/CLI handlers always protect the original error from reporting failures. Recursive dispatch in the same execution context is suppressed; independent fibers can report separately.
 
+### PSR-3 logging
+
+Register `Psr3ErrorListener` with any application-supplied `Psr\Log\LoggerInterface` (for example, Monolog). It is independent of framework configuration, does not install a logger, and is never enabled implicitly.
+
+```php
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
+use Componenta\Error\Listener\Psr3ErrorListener;
+use Componenta\Error\Reporter\ErrorReporter;
+
+$reporter = new ErrorReporter(new ArrayErrorListenerProvider([
+    Throwable::class => [new Psr3ErrorListener($logger)],
+]));
+```
+
+The listener uses a static PSR-3 message with correlation placeholders. Context includes `error_id`, `exception_type`, the event `timestamp` with microsecond precision and its original UTC offset, `transport` for HTTP/CLI, and `status` when the actual HTTP response status is available. PHP `Error` instances use `critical`, other throwables use `error`; no automatic severity downgrade is applied for HTTP 4xx responses. Neither the raw request nor arbitrary context attributes are forwarded.
+
+To grant a trusted logger access to the original Throwable, explicitly use `new Psr3ErrorListener($logger, includeException: true)`. It is passed unchanged under the PSR-3 `exception` key. This may expose confidential messages, traces, arguments and previous exceptions through the logger's handlers and formatters. The default excludes this object. Logger failures follow the reporter's existing failure policy; the listener does not retry or swallow them. Global reporting policy and provider selection remain outside the listener.
+
 ### Non-reportable exception classes
 
 ```php
