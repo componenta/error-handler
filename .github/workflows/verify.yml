@@ -46,3 +46,56 @@ jobs:
       - run: composer require --dev --no-interaction --no-update 'componenta/di:^6.0@dev'
       - run: composer update --no-interaction --prefer-dist
       - run: composer test:integration
+
+  analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer phpstan
+
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer benchmark
+
+  adapters:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: [plates, symfony, whoops, collision, ignition]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: core
+      - uses: actions/checkout@v7
+        with:
+          repository: componenta/error-renderer-${{ matrix.adapter }}
+          ref: refactor/error-handler-v2
+          path: adapter
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring
+          coverage: none
+          tools: composer:v2
+      - working-directory: adapter
+        run: |
+          composer config repositories.error-handler '{"type":"path","url":"../core","options":{"symlink":false,"versions":{"componenta/error-handler":"2.0.0"}}}'
+          composer update --no-interaction --prefer-dist
+          composer test

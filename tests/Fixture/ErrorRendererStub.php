@@ -19,7 +19,7 @@ final class ErrorRendererStub implements ErrorRendererInterface
 
     public function render(Throwable $exception, ErrorContextInterface $context): string
     {
-        if (is_callable($this->output)) {
+        if (!is_string($this->output) && is_callable($this->output)) {
             return ($this->output)($exception, $context);
         }
 
