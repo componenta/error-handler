@@ -16,6 +16,6 @@ final readonly class NonReportableErrorsFactory
     {
         $config = TypedService::get($container, Config::class, Config::class);
 
-        return new NonReportableErrors(array_values($config->array(ConfigKey::NON_REPORTABLE_ERRORS, [])));
+        return new NonReportableErrors($config->array(ConfigKey::NON_REPORTABLE_ERRORS, []));
     }
 }

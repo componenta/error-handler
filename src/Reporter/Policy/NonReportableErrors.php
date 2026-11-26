@@ -8,7 +8,7 @@ use Closure;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Internal\ErrorPredicate;
-use Throwable;
+use InvalidArgumentException;
 
 /** Excludes occurrences matching at least one configured rule. */
 final readonly class NonReportableErrors implements ErrorReportingPolicyInterface
@@ -16,9 +16,15 @@ final readonly class NonReportableErrors implements ErrorReportingPolicyInterfac
     /** @var list<Closure(ErrorOccurrence, ErrorContextInterface): bool> */
     private array $filters;
 
-    /** @param list<class-string<Throwable>|list<class-string<Throwable>>|callable(ErrorOccurrence, ErrorContextInterface): bool> $filters */
+    /**
+     * @param array<array-key, mixed> $filters List of Throwable class names, lists of class names, or boolean predicates.
+     * @throws InvalidArgumentException For malformed rule definitions.
+     */
     public function __construct(array $filters = [])
     {
+        if (!array_is_list($filters)) {
+            throw new InvalidArgumentException('Non-reportable error rules must be a list.');
+        }
         $this->filters = array_map(ErrorPredicate::normalize(...), $filters);
     }
 

@@ -32,4 +32,10 @@ final class InvalidFilterTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $first->addRenderer($second);
     }
+
+    public function testNonReportableRulesRejectAssociativeArray(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new NonReportableErrors(['invalid-key' => \RuntimeException::class]);
+    }
 }

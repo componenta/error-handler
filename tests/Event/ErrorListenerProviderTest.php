@@ -75,4 +75,10 @@ final class ErrorListenerProviderTest extends TestCase
 
         self::assertSame([$listener], iterator_to_array($provider->getListeners()));
     }
+
+    public function testRejectsMalformedRegistrationBeforeDispatch(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new ErrorListenerProvider([['listener' => 'not-a-listener', 'priority' => 10]]);
+    }
 }
