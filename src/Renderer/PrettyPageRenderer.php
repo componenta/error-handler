@@ -933,10 +933,11 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      */
     private function getShortPath(string $path): string
     {
-        $realPath = self::resolveLocalPath($path);
-        if ($realPath === false) {
+        if (str_contains($path, "\0") || str_contains($path, '://')) {
             return str_replace("\0", '\\0', str_replace('\\', '/', $path));
         }
+
+        $realPath = self::resolveLocalPath($path) ?: $path;
 
         foreach ($this->basePaths as $base) {
             if (str_starts_with($realPath, $base . DIRECTORY_SEPARATOR)) {

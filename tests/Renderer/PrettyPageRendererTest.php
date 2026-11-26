@@ -77,6 +77,23 @@ final class PrettyPageRendererTest extends TestCase
         self::assertStringContainsString('bad\\0path.php', $result->content);
     }
 
+    public function testMissingLocalSourceStillUsesRelativeDisplayPath(): void
+    {
+        $cwd = getcwd();
+        self::assertIsString($cwd);
+        $path = $cwd . '/missing-' . bin2hex(random_bytes(8)) . '.php';
+        $template = tempnam(sys_get_temp_dir(), 'pretty-path-');
+        self::assertIsString($template);
+        file_put_contents($template, '<?= $e($exception["shortFile"]) ?>');
+        try {
+            $error = new ErrorOccurrence(new \ErrorException('missing file', 0, E_WARNING, $path, 1), 'ERR-missing');
+            $renderer = new PrettyPageRenderer(templatePath: $template);
+            self::assertSame('./' . basename($path), $renderer->render($error, $this->context())->content);
+        } finally {
+            unlink($template);
+        }
+    }
+
     public function testInvalidDocumentRootDoesNotBreakRendererConstruction(): void
     {
         $existed = array_key_exists('DOCUMENT_ROOT', $_SERVER);
