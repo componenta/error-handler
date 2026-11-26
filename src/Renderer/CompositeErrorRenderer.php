@@ -63,21 +63,26 @@ final class CompositeErrorRenderer implements ErrorRendererInterface
      */
     public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
-        return $this->getRenderer($error, $context)->render($error, $context);
+        $renderer = $this->getRenderer($error, $context);
+        if ($renderer === null) {
+            throw new \InvalidArgumentException('No error renderer supports this occurrence and context.');
+        }
+
+        return $renderer->render($error, $context);
     }
 
     /**
      * Check if composite renderer supports the exception
      *
-     * Always returns true as it has a fallback renderer.
+     * A candidate or fallback must support the occurrence and context.
      *
      * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
-     * @return bool Always returns true
+     * @return bool Whether a renderer supports the occurrence and context
      */
     public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
     {
-        return true;
+        return $this->getRenderer($error, $context) !== null;
     }
 
     /**
@@ -85,9 +90,9 @@ final class CompositeErrorRenderer implements ErrorRendererInterface
      *
      * @param ErrorOccurrence $error Error occurrence
      * @param ErrorContextInterface $context Context information
-     * @return ErrorRendererInterface Supporting renderer
+     * @return ErrorRendererInterface|null Supporting renderer or no match
      */
-    private function getRenderer(ErrorOccurrence $error, ErrorContextInterface $context): ErrorRendererInterface
+    private function getRenderer(ErrorOccurrence $error, ErrorContextInterface $context): ?ErrorRendererInterface
     {
         $this->sortRenderers();
 
@@ -97,7 +102,7 @@ final class CompositeErrorRenderer implements ErrorRendererInterface
             }
         }
 
-        return $this->fallbackRenderer;
+        return $this->fallbackRenderer->supports($error, $context) ? $this->fallbackRenderer : null;
     }
 
     /**

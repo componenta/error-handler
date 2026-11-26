@@ -79,4 +79,28 @@ final class CompositeErrorRendererTest extends TestCase
 
         self::assertSame('fallback', $output);
     }
+
+    public function testCompositeDoesNotClaimUnsupportedFallback(): void
+    {
+        $composite = new CompositeErrorRenderer(new \Componenta\Error\Renderer\PrettyPageRenderer());
+        $error = new ErrorOccurrence(new RuntimeException(), 'ERR-test');
+        $context = CliContext::fromArgv();
+
+        self::assertFalse($composite->supports($error, $context));
+        $this->expectException(\InvalidArgumentException::class);
+        $composite->render($error, $context);
+    }
+
+    public function testCompositeWithConditionalFallbackCanBeSkippedByParent(): void
+    {
+        $conditional = new CompositeErrorRenderer(new \Componenta\Error\Renderer\PrettyPageRenderer());
+        $parent = new CompositeErrorRenderer(new \Componenta\Error\Renderer\SafeCliRenderer());
+        $parent->addRenderer($conditional, 100);
+        $error = new ErrorOccurrence(new RuntimeException('sensitive'), 'ERR-test');
+        $context = CliContext::fromArgv();
+
+        self::assertTrue($parent->supports($error, $context));
+        self::assertSame('text/plain; charset=utf-8', $parent->render($error, $context)->contentType);
+        self::assertStringNotContainsString('sensitive', $parent->render($error, $context)->content);
+    }
 }

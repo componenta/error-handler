@@ -98,4 +98,32 @@ final class CallableFiltersTest extends TestCase
             default => throw new \InvalidArgumentException('Unknown filter form: ' . $form),
         };
     }
+
+    public function testClassRuleSnapshotDetachesReferenceSlots(): void
+    {
+        $type = \RuntimeException::class;
+        $rules = [&$type];
+        $policy = new \Componenta\Error\Reporter\Policy\NonReportableErrors([$rules]);
+        $listener = ErrorListener::createFrom(static function (): void {}, $rules);
+        $type = \Throwable::class;
+
+        $context = CliContext::fromArgv();
+        $expected = new ErrorOccurrence(new RuntimeException(), 'ERR-expected');
+        $other = new ErrorOccurrence(new \LogicException(), 'ERR-other');
+        self::assertFalse($policy->shouldReport($expected, $context));
+        self::assertTrue($policy->shouldReport($other, $context));
+        self::assertTrue($listener->supports($expected, $context));
+        self::assertFalse($listener->supports($other, $context));
+    }
+
+    public function testCallableRuleSnapshotDoesNotTrackReboundMethodName(): void
+    {
+        $method = 'accepts';
+        $callable = [CallableErrorFilter::class, &$method];
+        $policy = new \Componenta\Error\Reporter\Policy\NonReportableErrors([$callable]);
+        $method = 'nonexistent';
+        $context = new CliContext(new ArrayInput([]), new BufferedOutput(), ['filteredCode' => 400]);
+        $error = new ErrorOccurrence(new RuntimeException('original', 400), 'ERR-test');
+        self::assertFalse($policy->shouldReport($error, $context));
+    }
 }

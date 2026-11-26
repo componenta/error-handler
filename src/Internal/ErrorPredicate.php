@@ -17,8 +17,9 @@ final class ErrorPredicate
     public static function normalize(mixed $filter): Closure
     {
         if (is_callable($filter)) {
-            return static function (ErrorOccurrence $error, ErrorContextInterface $context) use ($filter): bool {
-                $result = $filter($error, $context);
+            $callback = Closure::fromCallable($filter);
+            return static function (ErrorOccurrence $error, ErrorContextInterface $context) use ($callback): bool {
+                $result = $callback($error, $context);
                 if (!is_bool($result)) {
                     throw new \UnexpectedValueException('An error predicate must return bool.');
                 }
@@ -33,7 +34,14 @@ final class ErrorPredicate
             throw new InvalidArgumentException('Expected a callable or a list of Throwable class names.');
         }
 
+        // Detach class-name reference slots after validation. Captured callable
+        // object state remains intentionally shared through its closure.
+        $snapshot = [];
+        foreach ($classes as $class) {
+            $snapshot[] = $class;
+        }
+
         return static fn (ErrorOccurrence $error, ErrorContextInterface $context): bool =>
-            array_any($classes, static fn (mixed $class): bool => is_string($class) && $error->exception instanceof $class);
+            array_any($snapshot, static fn (mixed $class): bool => is_string($class) && $error->exception instanceof $class);
     }
 }
