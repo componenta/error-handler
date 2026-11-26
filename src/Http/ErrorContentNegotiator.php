@@ -73,7 +73,11 @@ final class ErrorContentNegotiator
         return $quality;
     }
 
-    /** @return list<string> Split a list without treating quoted delimiters as separators. */
+    /**
+     * Split a list without treating quoted delimiters as separators.
+     * @param ','|';' $delimiter
+     * @return list<string>
+     */
     private static function split(string $value, string $delimiter): array
     {
         if (!str_contains($value, '"')) {
