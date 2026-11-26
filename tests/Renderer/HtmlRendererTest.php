@@ -19,7 +19,7 @@ final class HtmlRendererTest extends TestCase
         $renderer = new HtmlRenderer();
         $exception = new RuntimeException('Test error');
 
-        $output = $renderer->render($exception, CliContext::fromArgv());
+        $output = $renderer->render($exception, CliContext::fromArgv())->content;
 
         $dom = new DOMDocument();
         $result = @$dom->loadHTML($output, LIBXML_NOERROR);

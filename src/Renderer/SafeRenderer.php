@@ -9,7 +9,6 @@ use Componenta\Error\Internal\ErrorCorrelation;
 use Componenta\Error\ErrorId\RandomErrorIdGenerator;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Context\HttpErrorContextInterface;
 
 /**
@@ -19,7 +18,7 @@ use Componenta\Error\Context\HttpErrorContextInterface;
  * like stack traces, file paths, or internal error messages.
  * Automatically selects JSON or HTML format based on request headers.
  */
-readonly class SafeRenderer implements HttpErrorRendererInterface
+readonly class SafeRenderer implements ErrorRendererInterface
 {
     /**
      * Create safe renderer
@@ -42,18 +41,19 @@ readonly class SafeRenderer implements HttpErrorRendererInterface
      *
      * @param Throwable $exception Exception to render
      * @param ErrorContextInterface $context Context information
-     * @return string Safe HTML or JSON output
+     * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
-        if ($context instanceof HttpErrorContextInterface) {
-            return $this->renderHttp($exception, $context)->body;
-        }
-
         $errorId = $this->resolveErrorId($exception, $context);
         $statusCode = $this->getStatusCode($context);
 
-        return $this->renderHtml($errorId, $statusCode);
+        if ($context instanceof HttpErrorContextInterface
+            && \Componenta\Error\Http\ErrorContentNegotiator::prefersJson($context->request->getHeaderLine('Accept'))) {
+            return new RenderedError($this->renderJson($errorId, $statusCode), 'application/json; charset=utf-8');
+        }
+
+        return new RenderedError($this->renderHtml($errorId, $statusCode), 'text/html; charset=utf-8');
     }
 
     /**
@@ -162,17 +162,5 @@ readonly class SafeRenderer implements HttpErrorRendererInterface
         $statusCode = $context->getAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, 500);
 
         return is_int($statusCode) && $statusCode >= 400 && $statusCode < 600 ? $statusCode : 500;
-    }
-
-    public function renderHttp(Throwable $exception, HttpErrorContextInterface $context): RenderedError
-    {
-        $errorId = $this->resolveErrorId($exception, $context);
-        $statusCode = $this->getStatusCode($context);
-
-        if (\Componenta\Error\Http\ErrorContentNegotiator::prefersJson($context->request->getHeaderLine('Accept'))) {
-            return new RenderedError($this->renderJson($errorId, $statusCode), 'application/json; charset=utf-8');
-        }
-
-        return new RenderedError($this->renderHtml($errorId, $statusCode), 'text/html; charset=utf-8');
     }
 }

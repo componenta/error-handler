@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Renderer\ErrorRendererInterface;
 use Throwable;
 
 /**
@@ -13,7 +12,7 @@ use Throwable;
  *
  * Renders exceptions as JSON with optional debug information.
  */
-readonly class JsonRenderer implements HttpErrorRendererInterface
+readonly class JsonRenderer implements ErrorRendererInterface
 {
     /**
      * Create JSON renderer
@@ -32,9 +31,9 @@ readonly class JsonRenderer implements HttpErrorRendererInterface
      *
      * @param Throwable $exception Exception to render
      * @param ErrorContextInterface $context Context information
-     * @return string JSON output
+     * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
         $data = [
             'error' => [
@@ -54,7 +53,10 @@ readonly class JsonRenderer implements HttpErrorRendererInterface
             }
         }
 
-        return json_encode($data, $this->jsonFlags | JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
+        return new RenderedError(
+            json_encode($data, $this->jsonFlags | JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+            'application/json; charset=utf-8',
+        );
     }
 
     /**
@@ -107,10 +109,5 @@ readonly class JsonRenderer implements HttpErrorRendererInterface
         }
 
         return $chain;
-    }
-
-    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
-    {
-        return new RenderedError($this->render($exception, $context), 'application/json; charset=utf-8');
     }
 }

@@ -22,11 +22,13 @@ final readonly class SafeCliRenderer implements ErrorRendererInterface
         return $context instanceof CliErrorContextInterface;
     }
 
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
         $id = ErrorCorrelation::read($context);
 
-        return DiagnosticData::terminal($this->message)
-            . ($id === null ? '' : "\nError ID: " . $id);
+        return new RenderedError(
+            DiagnosticData::terminal($this->message) . ($id === null ? '' : "\nError ID: " . $id),
+            'text/plain; charset=utf-8',
+        );
     }
 }

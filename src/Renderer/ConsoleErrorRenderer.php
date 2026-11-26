@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Throwable;
 
@@ -128,7 +127,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     // Main render method
     // ═══════════════════════════════════════════════════════════════════════════
 
-    public function render(Throwable $exception, ?ErrorContextInterface $context = null): string
+    public function render(Throwable $exception, ?ErrorContextInterface $context = null): RenderedError
     {
         $width = $this->getWidth();
         $output = [];
@@ -170,7 +169,7 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
             }
         }
 
-        return implode("\n", $output);
+        return new RenderedError(implode("\n", $output), 'text/plain; charset=utf-8');
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -6,8 +6,6 @@ namespace Componenta\Error\Http;
 
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
-use Componenta\Error\Renderer\HttpErrorRendererInterface;
-use Componenta\Error\Renderer\RenderedError;
 use Componenta\Error\Context\ErrorContextAttribute;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Componenta\Error\Renderer\SafeRenderer;
@@ -36,9 +34,7 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
             throw new \UnexpectedValueException('An HTTP error status must be between 400 and 599.');
         }
         $context = $context->withAttribute(ErrorContextAttribute::HTTP_STATUS_CODE, $statusCode);
-        $rendered = $this->renderer instanceof HttpErrorRendererInterface
-            ? $this->renderer->renderHttp($exception, $context)
-            : new RenderedError($this->renderer->render($exception, $context), 'text/plain; charset=utf-8');
+        $rendered = $this->renderer->render($exception, $context);
 
         $response = $this->responseFactory->createResponse($statusCode);
 
@@ -68,7 +64,7 @@ final readonly class HttpErrorResponseGenerator implements HttpErrorResponseGene
             ->withAddedHeader('Vary', 'Accept');
 
         if (strtoupper($context->request->getMethod()) !== 'HEAD') {
-            \Componenta\Error\Internal\StreamWriter::write($response->getBody(), $rendered->body);
+            \Componenta\Error\Internal\StreamWriter::write($response->getBody(), $rendered->content);
         }
 
         return $response;

@@ -7,6 +7,7 @@ namespace Componenta\Error\Handler;
 use Componenta\Error\Context\CliErrorContextInterface;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Renderer\ErrorRendererInterface;
+use Componenta\Error\Renderer\RenderedError;
 use Componenta\Error\Renderer\SafeCliRenderer;
 use Throwable;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
@@ -41,17 +42,17 @@ readonly class RenderingCliErrorHandler implements CliErrorHandlerInterface
         if ($output instanceof ConsoleOutputInterface) {
             $output = $output->getErrorOutput();
         }
-        $output->writeln($this->render($exception, $context), OutputInterface::OUTPUT_RAW);
+        $output->writeln((string) $this->render($exception, $context), OutputInterface::OUTPUT_RAW);
     }
 
     /**
-     * Render exception to string
+     * Render the exception
      *
      * @param Throwable $exception Exception to render
      * @param ErrorContextInterface $context Context information
-     * @return string Rendered output
+     * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
         return $this->renderer->render($exception, $context);
     }

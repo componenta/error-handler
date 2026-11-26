@@ -192,7 +192,7 @@ If no `ConfigKey::HTTP_FALLBACK_GENERATOR` is configured, the default HTTP handl
 
 ## Version 2 migration
 
-Requires Config 4 and PHP 8.4 or later. Register listeners on `ErrorListenerProvider` and exclusion predicates on `ErrorReporter`, rather than on handlers. Context attributes are accessible only through the context contract. HTTP renderers implement `HttpErrorRendererInterface::renderHttp()` and return `RenderedError` containing the body and media type. String-only renderers are treated as plain text; use `FixedMediaTypeRenderer` to declare a fixed type. Typed HTTP exceptions replace implicit numeric code mapping. The default handlers isolate reporting failures and use an independent emergency response when a PSR-17 factory is available. Error IDs have 128 bits of random entropy; HTTP responses expose the correlation ID via `X-Error-ID`. Development renderers can expose confidential exception messages or source; use SafeRenderer in production. Never expose HTML log snapshots publicly. Configure handlers and listeners before handling requests, not during requests. Middleware restores PHP error-handler state but cannot intercept fatal process termination or guarantee isolation between overlapping fiber executions.
+Requires Config 4 and PHP 8.4 or later. Register listeners on `ErrorListenerProvider` and exclusion predicates on `ErrorReporter`, rather than on handlers. Context attributes are accessible only through the context contract. All renderers implement `ErrorRendererInterface::render()` and return an immutable, `Stringable` `RenderedError` with `content` and `contentType`. The caller selects the transport; the renderer declares the actual media type. Typed HTTP exceptions replace implicit numeric code mapping. The default handlers isolate reporting failures and use an independent emergency response when a PSR-17 factory is available. Error IDs have 128 bits of random entropy; HTTP responses expose the correlation ID via `X-Error-ID`. Development renderers can expose confidential exception messages or source; use SafeRenderer in production. Never expose HTML log snapshots publicly. Configure handlers and listeners before handling requests, not during requests. Middleware restores PHP error-handler state but cannot intercept fatal process termination or guarantee isolation between overlapping fiber executions.
 
 ## Verification
 
@@ -201,3 +201,16 @@ Requires Config 4 and PHP 8.4 or later. Register listeners on `ErrorListenerProv
 The default CLI handler uses `SafeCliRenderer` (generic message and correlation ID). Choose `PlainTextRenderer` or `ConsoleErrorRenderer` explicitly for diagnostic output; their exception messages are not suitable for untrusted recipients.
 
 Recursive calls to the same `ErrorReporter` within one execution context are ignored while its listeners or filters are running. Separate fibers can report independently.
+
+## Renderer result
+
+```php
+use Componenta\Error\Renderer\JsonRenderer;
+
+$result = (new JsonRenderer())->render($exception, $context);
+$result->content;      // Rendered JSON
+$result->contentType;  // application/json; charset=utf-8
+(string) $result;     // Same as content
+```
+
+Custom renderers must return `new RenderedError($content, $contentType)`. `CompositeErrorRenderer` forwards the selected result unchanged. HTTP generators use its content and type directly, while CLI handlers write only its content. There is no separate HTTP rendering contract or implicit string-only fallback.

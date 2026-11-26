@@ -6,25 +6,24 @@ namespace Componenta\Error\Renderer;
 
 use Throwable;
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Renderer\ErrorRendererInterface;
 
 /**
  * Null error renderer that outputs nothing
  *
  * Useful for testing, silent mode, or when only reporting is needed.
  */
-readonly class NullRenderer implements HttpErrorRendererInterface
+readonly class NullRenderer implements ErrorRendererInterface
 {
     /**
-     * Render exception as empty string
+     * Render empty content
      *
      * @param Throwable $exception Exception to render
      * @param ErrorContextInterface $context Context information
-     * @return string Empty string
+     * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
-        return '';
+        return new RenderedError('', 'text/plain; charset=utf-8');
     }
 
     /**
@@ -37,10 +36,5 @@ readonly class NullRenderer implements HttpErrorRendererInterface
     public function supports(Throwable $exception, ErrorContextInterface $context): bool
     {
         return true;
-    }
-
-    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
-    {
-        return new RenderedError($this->render($exception, $context), 'text/plain; charset=utf-8');
     }
 }

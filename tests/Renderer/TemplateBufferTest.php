@@ -36,7 +36,7 @@ final class TemplateBufferTest extends TestCase
             $html = (new SafeRenderer(templatePath: $template))->render(
                 new RuntimeException('original'),
                 new HttpContext(new ServerRequest('GET', '/')),
-            );
+            )->content;
             self::assertSame($level + 1, ob_get_level());
             self::assertSame('parent-buffer', ob_get_contents());
             self::assertStringContainsString('An unexpected error occurred', $html);
@@ -62,7 +62,7 @@ final class TemplateBufferTest extends TestCase
             (new PrettyPageRenderer(templatePath: $template, includeSource: false))->render(
                 new RuntimeException('original'),
                 new HttpContext(new ServerRequest('GET', '/')),
-            );
+            )->content;
         } finally {
             try {
                 self::assertSame($level, ob_get_level());

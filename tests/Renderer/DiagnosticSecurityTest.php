@@ -26,7 +26,7 @@ final class DiagnosticSecurityTest extends TestCase
             private string $accessToken = 'property-' . 'secret-123';
         };
 
-        $html = (new PrettyPageRenderer(includeSource: false))->render($error, new HttpContext($request));
+        $html = (new PrettyPageRenderer(includeSource: false))->render($error, new HttpContext($request))->content;
 
         foreach ([$secret('query'), $secret('header'), $secret('cookie'), $secret('body'), $secret('raw'), $secret('property'), 'cdn.' . 'jsdelivr.net', 'fonts.' . 'googleapis.com'] as $secret) {
             self::assertStringNotContainsString($secret, $html);
@@ -38,14 +38,14 @@ final class DiagnosticSecurityTest extends TestCase
     {
         $html = (new PrettyPageRenderer(debug: false))->render(
             new RuntimeException('private-message-123'), new HttpContext(new ServerRequest('GET', '/')),
-        );
+        )->content;
         self::assertStringNotContainsString('private-message-123', $html);
     }
 
     public function testConsoleDoesNotEmitUntrustedEscapeSequences(): void
     {
         $renderer = new ConsoleErrorRenderer(debug: false, colors: false, terminalWidth: 20);
-        $text = $renderer->render(new RuntimeException("bad\x1b[2Jmessage"));
+        $text = $renderer->render(new RuntimeException("bad\x1b[2Jmessage"))->content;
         self::assertStringNotContainsString("\x1b", $text);
         self::assertStringContainsString('bad', $text);
     }

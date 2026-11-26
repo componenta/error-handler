@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Renderer\ErrorRendererInterface;
 use Componenta\Error\Context\HttpErrorContextInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
@@ -16,7 +15,7 @@ use Throwable;
  * Extracts error data and renders it using a template file.
  * Self-contained diagnostic page without remote assets.
  */
-final class PrettyPageRenderer implements HttpErrorRendererInterface
+final class PrettyPageRenderer implements ErrorRendererInterface
 {
     private const int CONTEXT_LINES = 12;
     private const int DEFAULT_MAX_STRING_LENGTH = 200;
@@ -162,7 +161,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
     /**
      * Render exception as HTML string
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
         if (!$context instanceof HttpErrorContextInterface) {
             throw new \InvalidArgumentException('PrettyPageRenderer requires HTTP error context.');
@@ -176,7 +175,7 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         $payload = $this->buildPayload($exception, $context);
 
         // Render template
-        return $this->renderTemplate($payload);
+        return new RenderedError($this->renderTemplate($payload), 'text/html; charset=utf-8');
     }
 
     /**
@@ -956,12 +955,5 @@ final class PrettyPageRenderer implements HttpErrorRendererInterface
         }
 
         return round($bytes, 1) . ' ' . $units[$i];
-    }
-
-    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
-    {
-        return !$this->debug
-            ? (new SafeRenderer())->renderHttp($exception, $context)
-            : new RenderedError($this->render($exception, $context), 'text/html; charset=utf-8');
     }
 }

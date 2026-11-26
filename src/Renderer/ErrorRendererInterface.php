@@ -11,17 +11,17 @@ use Throwable;
 /**
  * Interface for exception renderers
  *
- * Renderers convert exceptions to string output (HTML, JSON, text, etc.).
+ * Renderers convert exceptions to content with an explicit media type (HTML, JSON, text, etc.).
  * Multiple renderers can be combined using CompositeErrorRenderer.
  */
 interface ErrorRendererInterface extends SupportsErrorInterface
 {
     /**
-     * Render exception to string
+     * Render the exception
      *
      * @param Throwable $exception Exception to render
      * @param ErrorContextInterface $context Context information
-     * @return string Rendered output
+     * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string;
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError;
 }

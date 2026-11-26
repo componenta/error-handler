@@ -52,7 +52,7 @@ final class RenderingCliErrorHandlerTest extends TestCase
         $output = $handler->render(
             new RuntimeException(),
             new CliContext(new ArrayInput([]), new BufferedOutput()),
-        );
+        )->content;
 
         self::assertSame('rendered error', $output);
     }

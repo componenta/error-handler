@@ -18,7 +18,7 @@ final class PlainTextRendererTest extends TestCase
         $renderer = new PlainTextRenderer();
         $exception = new RuntimeException('Test error');
 
-        $output = $renderer->render($exception, CliContext::fromArgv());
+        $output = $renderer->render($exception, CliContext::fromArgv())->content;
 
         self::assertNotEmpty($output);
     }

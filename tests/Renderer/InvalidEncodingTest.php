@@ -20,11 +20,11 @@ final class InvalidEncodingTest extends TestCase
         $message = "before\xFF-after";
         $error = new RuntimeException($message);
 
-        $debug = json_decode((new JsonRenderer())->render($error, $context), true, flags: JSON_THROW_ON_ERROR);
-        $safe = json_decode((new SafeRenderer(defaultMessage: $message))->render($error, $context), true, flags: JSON_THROW_ON_ERROR);
+        $debug = json_decode((new JsonRenderer())->render($error, $context)->content, true, flags: JSON_THROW_ON_ERROR);
+        $safe = json_decode((new SafeRenderer(defaultMessage: $message))->render($error, $context)->content, true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame("before\u{FFFD}-after", $debug['error']['message']);
         self::assertSame("before\u{FFFD}-after", $safe['error']['message']);
-        self::assertStringContainsString('before', (new HtmlRenderer())->render($error, $context));
+        self::assertStringContainsString('before', (new HtmlRenderer())->render($error, $context)->content);
     }
 }

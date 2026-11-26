@@ -59,7 +59,7 @@ final class DiagnosticBudgetTest extends TestCase
 
         try {
             $body = (new PrettyPageRenderer(templatePath: $template, captureJsonBody: true, includeSource: false))
-                ->render(new RuntimeException('original'), new HttpContext($request));
+                ->render(new RuntimeException('original'), new HttpContext($request))->content;
 
             self::assertSame(['password' => '[redacted]', 'name' => 'visible-value'], json_decode($body, true, flags: JSON_THROW_ON_ERROR));
             self::assertSame(5, $position);

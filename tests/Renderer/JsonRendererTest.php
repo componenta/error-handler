@@ -18,7 +18,7 @@ final class JsonRendererTest extends TestCase
         $renderer = new JsonRenderer();
         $exception = new RuntimeException('Test error', 500);
 
-        $output = $renderer->render($exception, CliContext::fromArgv());
+        $output = $renderer->render($exception, CliContext::fromArgv())->content;
 
         self::assertJson($output);
     }

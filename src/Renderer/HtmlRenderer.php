@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Renderer\ErrorRendererInterface;
 use Throwable;
 
 /**
@@ -13,7 +12,7 @@ use Throwable;
  *
  * Renders exceptions as styled HTML pages with optional debug information.
  */
-readonly class HtmlRenderer implements HttpErrorRendererInterface
+readonly class HtmlRenderer implements ErrorRendererInterface
 {
     /**
      * Create HTML renderer
@@ -32,9 +31,9 @@ readonly class HtmlRenderer implements HttpErrorRendererInterface
      *
      * @param Throwable $exception Exception to render
      * @param ErrorContextInterface $context Context information
-     * @return string HTML output
+     * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
         $type = htmlspecialchars($exception::class, ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
         $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, $this->charset);
@@ -55,7 +54,7 @@ readonly class HtmlRenderer implements HttpErrorRendererInterface
 HTML;
         }
 
-        return <<<HTML
+        $content = <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -116,6 +115,8 @@ HTML;
 </body>
 </html>
 HTML;
+
+        return new RenderedError($content, 'text/html; charset=' . strtolower($this->charset));
     }
 
     /**
@@ -128,10 +129,5 @@ HTML;
     public function supports(Throwable $exception, ErrorContextInterface $context): true
     {
         return true;
-    }
-
-    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
-    {
-        return new RenderedError($this->render($exception, $context), 'text/html; charset=' . strtolower($this->charset));
     }
 }

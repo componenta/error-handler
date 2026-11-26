@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Renderer\ErrorRendererInterface;
 use Throwable;
 
 /**
@@ -13,7 +12,7 @@ use Throwable;
  *
  * Renders exceptions as plain text with optional debug information.
  */
-readonly class PlainTextRenderer implements HttpErrorRendererInterface
+readonly class PlainTextRenderer implements ErrorRendererInterface
 {
     /**
      * Create plain text renderer
@@ -32,9 +31,9 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
      *
      * @param Throwable $exception Exception to render
      * @param ErrorContextInterface $context Context information
-     * @return string Plain text output
+     * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
         $output = $this->formatException($exception, 0);
 
@@ -54,7 +53,7 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
 
         $id = \Componenta\Error\Internal\ErrorCorrelation::read($context);
 
-        return $output . ($id !== null ? "\nError ID: " . $id : '');
+        return new RenderedError($output . ($id !== null ? "\nError ID: " . $id : ''), 'text/plain; charset=utf-8');
     }
 
     /**
@@ -103,10 +102,5 @@ readonly class PlainTextRenderer implements HttpErrorRendererInterface
         }
 
         return implode("\n", $lines);
-    }
-
-    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
-    {
-        return new RenderedError($this->render($exception, $context), 'text/plain; charset=utf-8');
     }
 }

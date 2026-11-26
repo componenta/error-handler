@@ -34,7 +34,7 @@ final class ConsoleErrorRendererTest extends TestCase
         );
 
         try {
-            $rendered = $renderer->render($error, $context);
+            $rendered = $renderer->render($error, $context)->content;
         } finally {
             restore_error_handler();
         }
@@ -104,7 +104,7 @@ final class ConsoleErrorRendererTest extends TestCase
         $renderer = new ConsoleErrorRenderer(debug: false, colors: false, terminalWidth: 100);
         $error = new $exceptionClass('The command failed');
 
-        $rendered = $renderer->render($error);
+        $rendered = $renderer->render($error)->content;
 
         self::assertMatchesRegularExpression('/✖\h+' . preg_quote($heading, '/') . '\h*$/mu', $rendered);
         self::assertStringContainsString('The command failed', $rendered);

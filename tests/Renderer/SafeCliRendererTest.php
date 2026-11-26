@@ -38,7 +38,7 @@ final class SafeCliRendererTest extends TestCase
             ErrorContextAttribute::ERROR_ID => 'ERR-example',
         ]);
         $renderer = new SafeCliRenderer();
-        self::assertSame("An unexpected error occurred\nError ID: ERR-example", $renderer->render(new RuntimeException('private'), $context));
+        self::assertSame("An unexpected error occurred\nError ID: ERR-example", $renderer->render(new RuntimeException('private'), $context)->content);
     }
 
     public function testDiagnosticRendererRemainsAnExplicitOptIn(): void

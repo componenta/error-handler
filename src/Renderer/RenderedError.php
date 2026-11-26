@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use InvalidArgumentException;
+use Stringable;
 
-/** Body and its actual HTTP representation, selected together. */
-final readonly class RenderedError
+/** Immutable rendered content and its actual media type, independent of transport. */
+final readonly class RenderedError implements Stringable
 {
-    public function __construct(public string $body, public string $contentType)
+    public function __construct(public string $content, public string $contentType)
     {
-        if ($contentType === '' || preg_match('/[\x00-\x1f\x7f]/', $contentType)) {
+        if (trim($contentType) === '' || preg_match('/[\x00-\x1f\x7f]/', $contentType)) {
             throw new InvalidArgumentException('Invalid error representation media type.');
         }
+    }
+
+    public function __toString(): string
+    {
+        return $this->content;
     }
 }

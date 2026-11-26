@@ -18,7 +18,7 @@ final class NullRendererTest extends TestCase
         $renderer = new NullRenderer();
         $exception = new RuntimeException('Test error');
 
-        $output = $renderer->render($exception, CliContext::fromArgv());
+        $output = $renderer->render($exception, CliContext::fromArgv())->content;
 
         self::assertEmpty($output);
     }

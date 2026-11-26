@@ -26,7 +26,7 @@ final class PrettyPageRendererTest extends TestCase
         try {
             $renderer = new PrettyPageRenderer(applicationName: 'Test <App>', templatePath: $template);
 
-            $output = $renderer->render(new RuntimeException('Payment <failed>'), $this->context());
+            $output = $renderer->render(new RuntimeException('Payment <failed>'), $this->context())->content;
 
             self::assertStringContainsString('app=Test &lt;App&gt;', $output);
             self::assertStringContainsString('exception=Payment &lt;failed&gt;', $output);
@@ -49,7 +49,7 @@ final class PrettyPageRendererTest extends TestCase
             }
         };
 
-        $output = $renderer->render($exception, $this->context());
+        $output = $renderer->render($exception, $this->context())->content;
 
         self::assertStringContainsString('invoiceId', $output);
         self::assertStringContainsString('inv-100', $output);
@@ -61,7 +61,7 @@ final class PrettyPageRendererTest extends TestCase
             \Componenta\Error\Context\ErrorContextAttribute::ERROR_ID,
             'ERR-correlation-123',
         );
-        $html = (new PrettyPageRenderer(includeSource: false))->render(new RuntimeException('failure'), $context);
+        $html = (new PrettyPageRenderer(includeSource: false))->render(new RuntimeException('failure'), $context)->content;
 
         self::assertStringContainsString('Error ID: ERR-correlation-123', $html);
         self::assertStringContainsString('<meta name="referrer" content="no-referrer">', $html);

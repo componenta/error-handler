@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Componenta\Error\Renderer;
 
 use Componenta\Error\ErrorContextInterface;
-use Componenta\Error\Renderer\ErrorRendererInterface;
 use Throwable;
 
 /**
@@ -15,7 +14,7 @@ use Throwable;
  * supports the given exception. Falls back to a default renderer
  * if no other renderer matches.
  */
-final class CompositeErrorRenderer implements HttpErrorRendererInterface
+final class CompositeErrorRenderer implements ErrorRendererInterface
 {
     /**
      * @var array<array{renderer: ErrorRendererInterface, priority: int}> Registered renderers
@@ -60,9 +59,9 @@ final class CompositeErrorRenderer implements HttpErrorRendererInterface
      *
      * @param Throwable $exception Exception to render
      * @param ErrorContextInterface $context Context information
-     * @return string Rendered output
+     * @return RenderedError Rendered content and media type
      */
-    public function render(Throwable $exception, ErrorContextInterface $context): string
+    public function render(Throwable $exception, ErrorContextInterface $context): RenderedError
     {
         return $this->getRenderer($exception, $context)->render($exception, $context);
     }
@@ -115,14 +114,6 @@ final class CompositeErrorRenderer implements HttpErrorRendererInterface
         }
     }
 
-    public function renderHttp(Throwable $exception, \Componenta\Error\Context\HttpErrorContextInterface $context): RenderedError
-    {
-        $renderer = $this->getRenderer($exception, $context);
-
-        return $renderer instanceof HttpErrorRendererInterface
-            ? $renderer->renderHttp($exception, $context)
-            : new RenderedError($renderer->render($exception, $context), 'text/plain; charset=utf-8');
-    }
 
     private function contains(self $needle): bool
     {
