@@ -13,13 +13,19 @@ use Throwable;
 final class ErrorPredicate
 {
     /**
-     * @param class-string<Throwable>|list<class-string<Throwable>>|callable(Throwable, ErrorContextInterface): bool $filter
+     * @param string|array<array-key, mixed>|callable $filter
      * @return Closure(Throwable, ErrorContextInterface): bool
      */
     public static function normalize(string|array|callable $filter): Closure
     {
         if (is_callable($filter)) {
-            return static fn (Throwable $error, ErrorContextInterface $context): bool => $filter($error, $context);
+            return static function (Throwable $error, ErrorContextInterface $context) use ($filter): bool {
+                $result = $filter($error, $context);
+                if (!is_bool($result)) {
+                    throw new \UnexpectedValueException('An error predicate must return bool.');
+                }
+                return $result;
+            };
         }
 
         $classes = is_string($filter) ? [$filter] : $filter;
