@@ -10,7 +10,6 @@ use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorEvent;
 use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Event\ErrorListenerInterface;
-use SplObjectStorage;
 use UnexpectedValueException;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Internal\FailureLog;
@@ -55,17 +54,17 @@ final class ErrorReporter implements ErrorReporterInterface
             }
 
             $event = null;
-            $seen = new SplObjectStorage();
+            $seen = [];
 
             foreach ($this->listeners->provideFor($error->exception) as $listener) {
                 try {
                     if (!$listener instanceof ErrorListenerInterface) {
                         throw new UnexpectedValueException('Provider must yield error listeners.');
                     }
-                    if ($seen->contains($listener)) {
+                    if (isset($seen[spl_object_id($listener)])) {
                         continue;
                     }
-                    $seen->attach($listener);
+                    $seen[spl_object_id($listener)] = $listener;
                     if ($listener->supports($error, $context)) {
                         $event ??= new ErrorEvent($error, $context, $this->timestamp($error));
                         $listener->handleEvent($event);

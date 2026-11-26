@@ -12,7 +12,6 @@ use Componenta\Error\Event\Provider\Internal\ListenerIndex;
 use Componenta\Error\Internal\FailureLog;
 use InvalidArgumentException;
 use ReflectionClass;
-use SplObjectStorage;
 use Throwable;
 use UnexpectedValueException;
 
@@ -70,7 +69,7 @@ final readonly class AttributeErrorListenerProvider implements ErrorListenerProv
     public function provideFor(Throwable $exception): iterable
     {
         $classes = [];
-        $seen = new SplObjectStorage();
+        $seen = [];
         foreach ($this->index->matching($exception) as $class) {
             if (isset($classes[$class])) {
                 continue;
@@ -88,8 +87,8 @@ final readonly class AttributeErrorListenerProvider implements ErrorListenerProv
                 continue;
             }
 
-            if (!$seen->contains($listener)) {
-                $seen->attach($listener);
+            if (!isset($seen[spl_object_id($listener)])) {
+                $seen[spl_object_id($listener)] = $listener;
                 yield $listener;
             }
         }

@@ -8,7 +8,6 @@ use Componenta\Error\Event\ErrorListenerInterface;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Event\Provider\Internal\ListenerIndex;
 use InvalidArgumentException;
-use SplObjectStorage;
 use Throwable;
 
 /** Immutable explicit registrations grouped by Throwable type. */
@@ -50,11 +49,11 @@ final readonly class ArrayErrorListenerProvider implements ErrorListenerProvider
 
     public function provideFor(Throwable $exception): iterable
     {
-        $seen = new SplObjectStorage();
+        $seen = [];
         foreach ($this->index->matching($exception) as $listener) {
             // The first match has the highest matching priority.
-            if (!$seen->contains($listener)) {
-                $seen->attach($listener);
+            if (!isset($seen[spl_object_id($listener)])) {
+                $seen[spl_object_id($listener)] = $listener;
                 yield $listener;
             }
         }

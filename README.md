@@ -154,7 +154,7 @@ The reporter is transport independent. Register its ordered listeners and exclus
 ```php
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Reporter\ErrorReporter;
 use Componenta\Error\Reporter\Policy\NonReportableErrors;
 
@@ -162,13 +162,13 @@ $listener = ErrorListener::createFrom(static function (ErrorEventInterface $even
     // Use $event->error->id, $event->error->exception, $event->context and $event->timestamp.
 });
 $reporter = new ErrorReporter(
-    new ErrorListenerProvider([['listener' => $listener, 'priority' => 100]]),
+    new ArrayErrorListenerProvider([Throwable::class => [['listener' => $listener, 'priority' => 100]]]),
     new NonReportableErrors([\InvalidArgumentException::class]),
 );
 $handler = HttpErrorHandler::createDefaults($responseFactory, reporter: $reporter);
 ```
 
-A global exclusion rule prevents every listener from receiving the event. Individual listener predicates limit a single destination instead. Rules accept exception class names, lists of class names, and callables receiving (ErrorOccurrence, ErrorContextInterface) and returning bool. For exclusion predicates, true means exclude; for listener predicates, true means support. Listener order is descending priority, stable for equal priorities, and the first registration of the same object wins. The provider and policy are immutable after construction.
+A global exclusion rule prevents every listener from receiving the event. Individual listener predicates limit a single destination instead. Rules accept exception class names, lists of class names, and callables receiving (ErrorOccurrence, ErrorContextInterface) and returning bool. For exclusion predicates, true means exclude; for listener predicates, true means support. Listener order is descending priority, stable for equal priorities, and the highest matching priority of the same object wins. The provider and policy are immutable after construction.
 
 The default reporter continues if a policy fails, uses UTC system time if the injected clock fails, and isolates individual listener failures. ListenerExceptionPolicy::Throw is an explicit direct-reporter option; HTTP/CLI handlers always protect the original error from reporting failures. Recursive dispatch in the same execution context is suppressed; independent fibers can report separately.
 
@@ -185,15 +185,13 @@ Important config keys:
 | `ConfigKey::HTTP_GENERATORS` | Ordered service ids for specialized HTTP response generators. |
 | `ConfigKey::CLI_FALLBACK_HANDLER` | CLI fallback renderer/handler. |
 | `ConfigKey::CLI_RENDERER` | CLI renderer. |
-| `ConfigKey::ERROR_LISTENERS` | Ordered listener service ids or arrays with `listener` service id and integer `priority`. |
-| `ConfigKey::NON_REPORTABLE_ERRORS` | Excluded exception classes and predicates. |
 | `ConfigKey::ERROR_LEVEL` | Error level handled by `ErrorHandlerMiddleware`. |
 
 If no `ConfigKey::HTTP_FALLBACK_GENERATOR` is configured, the default HTTP handler requires `Psr\Http\Message\ResponseFactoryInterface` in the container.
 
 ## Version 2 migration
 
-Requires Config 4 and PHP 8.4 or later. Supply listener registrations to `ErrorListenerProvider` and exclusion rules to `NonReportableErrors` at construction time. Context attributes are accessible only through the context contract. All renderers implement `ErrorRendererInterface::render()` and return an immutable, `Stringable` `RenderedError` with `content` and `contentType`. The caller selects the transport; the renderer declares the actual media type. Typed HTTP exceptions replace implicit numeric code mapping. The default handlers isolate reporting failures and use an independent emergency response when a PSR-17 factory is available. Error IDs have 128 bits of random entropy; HTTP responses expose the correlation ID via `X-Error-ID`. Development renderers can expose confidential exception messages or source; use SafeRenderer in production. Never expose HTML log snapshots publicly. Configure handlers and listeners before handling requests, not during requests. Middleware restores PHP error-handler state but cannot intercept fatal process termination or guarantee isolation between overlapping fiber executions.
+Requires Config 4 and PHP 8.4 or later. Supply listener registrations to `ArrayErrorListenerProvider` and exclusion rules to `NonReportableErrors` at construction time. Context attributes are accessible only through the context contract. All renderers implement `ErrorRendererInterface::render()` and return an immutable, `Stringable` `RenderedError` with `content` and `contentType`. The caller selects the transport; the renderer declares the actual media type. Typed HTTP exceptions replace implicit numeric code mapping. The default handlers isolate reporting failures and use an independent emergency response when a PSR-17 factory is available. Error IDs have 128 bits of random entropy; HTTP responses expose the correlation ID via `X-Error-ID`. Development renderers can expose confidential exception messages or source; use SafeRenderer in production. Never expose HTML log snapshots publicly. Configure handlers and listeners before handling requests, not during requests. Middleware restores PHP error-handler state but cannot intercept fatal process termination or guarantee isolation between overlapping fiber executions.
 
 ## Verification
 
@@ -220,3 +218,7 @@ Custom renderers must return `new RenderedError($content, $contentType)`. `Compo
 `ErrorReporter` timestamps each event using an injected PSR-20 `ClockInterface` (UTC system clock by default). The event stores the supplied timestamp. It contains no transport result; the actual HTTP status, if available, is supplied in `ErrorContextAttribute::HTTP_STATUS_CODE`.
 
 `ErrorOccurrence` contains the original `Throwable` and a required ID. `ErrorOccurrenceFactory` creates it once at the catch boundary; the default ID is `ERR-` plus 128 random bits in hexadecimal (no wall-clock suffix). All rendering, handling and reporting contracts take the same occurrence. `HttpStatusResolver` still takes the original exception. Error IDs are not context attributes. The default DI configuration shares `ErrorReporterInterface` across HTTP and CLI; override the interface service to supply a different reporter, policy, listener provider or ID generator. `ErrorEvent` contains only `error`, `context` and `timestamp`.
+
+## Listener providers
+
+All providers expose only provideFor(Throwable): iterable<ErrorListenerInterface>. ArrayErrorListenerProvider accepts a map from Throwable types to lists of listener instances or ['listener' => instance, 'priority' => int]. Throwable::class is the catch-all. Parent classes and Throwable-compatible interfaces match. AttributeErrorListenerProvider indexes #[ListenTo(ExceptionType::class, priority: 10)] on supplied concrete listener classes once and invokes the provided Closure resolver only for matching classes. Repeated matching attributes select the highest priority. Attributes are not implicitly inherited. The cache is bounded and stores routing metadata, not resolved services or context-dependent support decisions. CompositeErrorListenerProvider traverses its children in declaration order, deduplicates by object identity, and logs and isolates a failing child (including deferred iteration failures). Attribute resolution failures are logged and skipped. Individual supports() checks remain in the reporter. Time and the event are created once, only when a listener supports the occurrence. For configuration-driven registration and automatic class discovery use componenta/error-handler-app.

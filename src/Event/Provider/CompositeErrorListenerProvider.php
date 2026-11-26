@@ -8,7 +8,6 @@ use Componenta\Error\Event\ErrorListenerInterface;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Internal\FailureLog;
 use InvalidArgumentException;
-use SplObjectStorage;
 use Throwable;
 use UnexpectedValueException;
 
@@ -22,13 +21,13 @@ final readonly class CompositeErrorListenerProvider implements ErrorListenerProv
     public function __construct(iterable $providers = [])
     {
         $snapshot = [];
-        $seen = new SplObjectStorage();
+        $seen = [];
         foreach ($providers as $provider) {
             if (!$provider instanceof ErrorListenerProviderInterface || $provider === $this) {
                 throw new InvalidArgumentException('Invalid error listener provider.');
             }
-            if (!$seen->contains($provider)) {
-                $seen->attach($provider);
+            if (!isset($seen[spl_object_id($provider)])) {
+                $seen[spl_object_id($provider)] = $provider;
                 $snapshot[] = $provider;
             }
         }
@@ -37,15 +36,15 @@ final readonly class CompositeErrorListenerProvider implements ErrorListenerProv
 
     public function provideFor(Throwable $exception): iterable
     {
-        $seen = new SplObjectStorage();
+        $seen = [];
         foreach ($this->providers as $provider) {
             try {
                 foreach ($provider->provideFor($exception) as $listener) {
                     if (!$listener instanceof ErrorListenerInterface) {
                         throw new UnexpectedValueException('Provider must yield error listeners.');
                     }
-                    if (!$seen->contains($listener)) {
-                        $seen->attach($listener);
+                    if (!isset($seen[spl_object_id($listener)])) {
+                        $seen[spl_object_id($listener)] = $listener;
                         yield $listener;
                     }
                 }
