@@ -135,7 +135,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
 
         $cwd = getcwd();
         if ($cwd !== false) {
-            $realCwd = realpath($cwd);
+            $realCwd = self::resolveLocalPath($cwd);
             if ($realCwd !== false) {
                 $paths['cwd'] = $realCwd;
             }
@@ -143,7 +143,7 @@ final class PrettyPageRenderer implements ErrorRendererInterface
 
         $docRoot = $_SERVER['DOCUMENT_ROOT'] ?? null;
         if (is_string($docRoot) && $docRoot !== '') {
-            $realDocRoot = realpath($docRoot);
+            $realDocRoot = self::resolveLocalPath($docRoot);
             if ($realDocRoot !== false) {
                 $paths['docRoot'] = $realDocRoot;
             }
@@ -933,7 +933,10 @@ final class PrettyPageRenderer implements ErrorRendererInterface
      */
     private function getShortPath(string $path): string
     {
-        $realPath = realpath($path) ?: $path;
+        $realPath = self::resolveLocalPath($path);
+        if ($realPath === false) {
+            return str_replace("\0", '\\0', str_replace('\\', '/', $path));
+        }
 
         foreach ($this->basePaths as $base) {
             if (str_starts_with($realPath, $base . DIRECTORY_SEPARATOR)) {
@@ -947,6 +950,20 @@ final class PrettyPageRenderer implements ErrorRendererInterface
         // Normalize to forward slashes even for non-matched paths
         $normalized = str_replace('\\', '/', $path);
         return $normalized;
+    }
+
+    /** Resolve only usable local paths; diagnostic metadata is not trusted. */
+    private static function resolveLocalPath(string $path): string|false
+    {
+        if ($path === '' || str_contains($path, "\0") || str_contains($path, '://')) {
+            return false;
+        }
+
+        try {
+            return @realpath($path);
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**

@@ -65,6 +65,38 @@ final class PrettyPageRendererTest extends TestCase
         self::assertStringContainsString('<meta name="referrer" content="no-referrer">', $html);
     }
 
+    public function testInvalidExceptionPathDoesNotBreakDiagnosticRendering(): void
+    {
+        $exception = new \ErrorException('diagnostic-marker', 0, E_WARNING, "bad\0path.php", 7);
+        $renderer = new PrettyPageRenderer();
+        $result = $renderer->render(new ErrorOccurrence($exception, 'ERR-invalid-path'), $this->context());
+
+        self::assertSame('text/html; charset=utf-8', $result->contentType);
+        self::assertStringContainsString('diagnostic-marker', $result->content);
+        self::assertStringContainsString('ERR-invalid-path', $result->content);
+        self::assertStringContainsString('bad\\0path.php', $result->content);
+    }
+
+    public function testInvalidDocumentRootDoesNotBreakRendererConstruction(): void
+    {
+        $existed = array_key_exists('DOCUMENT_ROOT', $_SERVER);
+        $previous = $_SERVER['DOCUMENT_ROOT'] ?? null;
+        $_SERVER['DOCUMENT_ROOT'] = "bad\0root";
+        try {
+            $result = (new PrettyPageRenderer(includeSource: false))->render(
+                new ErrorOccurrence(new RuntimeException('diagnostic-marker'), 'ERR-invalid-root'),
+                $this->context(),
+            );
+            self::assertStringContainsString('diagnostic-marker', $result->content);
+        } finally {
+            if ($existed) {
+                $_SERVER['DOCUMENT_ROOT'] = $previous;
+            } else {
+                unset($_SERVER['DOCUMENT_ROOT']);
+            }
+        }
+    }
+
     private function context(): HttpContext
     {
         return new HttpContext(new ServerRequest('GET', '/'));

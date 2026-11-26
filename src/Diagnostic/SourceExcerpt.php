@@ -15,7 +15,7 @@ final class SourceExcerpt
     /** @return array{startLine: int, errorLine: int, lines: list<string>}|null */
     public static function read(string $file, int $line, int $context): ?array
     {
-        if ($line < 1 || $context < 0 || str_contains($file, '://')) {
+        if ($line < 1 || $context < 0 || str_contains($file, '://') || str_contains($file, "\0")) {
             return null;
         }
 
