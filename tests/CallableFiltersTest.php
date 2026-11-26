@@ -51,11 +51,11 @@ final class CallableFiltersTest extends TestCase
             'filteredCode' => $suppress ? 400 : 500,
         ]);
         $events = [];
-        $listeners = new \Componenta\Error\Event\ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new \Componenta\Error\Event\Provider\ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$events): void {
                 $events[] = $event->error->exception;
             },
-        )]);
+        )]]);
         $reporter = new ErrorReporter($listeners, new NonReportableErrors([self::predicate($form)]));
 
         $reporter->report(new ErrorOccurrence($error, 'ERR-test'), $context);

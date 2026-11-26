@@ -1,0 +1,97 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Componenta\Error\Event\Provider;
+
+use Closure;
+use Componenta\Error\Event\Attribute\ListenTo;
+use Componenta\Error\Event\ErrorListenerInterface;
+use Componenta\Error\Event\ErrorListenerProviderInterface;
+use Componenta\Error\Event\Provider\Internal\ListenerIndex;
+use Componenta\Error\Internal\FailureLog;
+use InvalidArgumentException;
+use ReflectionClass;
+use SplObjectStorage;
+use Throwable;
+use UnexpectedValueException;
+
+/**
+ * Indexes explicitly supplied listener classes once and resolves matching services
+ * on demand. No class discovery or framework container dependency.
+ */
+final readonly class AttributeErrorListenerProvider implements ErrorListenerProviderInterface
+{
+    /** @var ListenerIndex<class-string<ErrorListenerInterface>> */
+    private ListenerIndex $index;
+
+    /** @var Closure(class-string<ErrorListenerInterface>): ErrorListenerInterface */
+    private Closure $resolver;
+
+    /**
+     * @param iterable<class-string<ErrorListenerInterface>> $classes
+     * @param Closure(class-string<ErrorListenerInterface>): ErrorListenerInterface $resolver
+     */
+    public function __construct(iterable $classes, Closure $resolver)
+    {
+        $this->resolver = $resolver;
+        $registrations = [];
+        $seen = [];
+        foreach ($classes as $class) {
+            if (!is_a($class, ErrorListenerInterface::class, true)) {
+                throw new InvalidArgumentException('Expected an error listener class.');
+            }
+
+            $reflection = new ReflectionClass($class);
+            if ($reflection->isAbstract() || $reflection->isInterface()) {
+                throw new InvalidArgumentException('Error listener class must be concrete.');
+            }
+            $canonical = $reflection->getName();
+            $key = strtolower($canonical);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            // Class attributes are intentionally not inherited implicitly.
+            foreach ($reflection->getAttributes(ListenTo::class) as $attribute) {
+                $route = $attribute->newInstance();
+                $registrations[] = [
+                    'exception' => $route->exception,
+                    'value' => $canonical,
+                    'priority' => $route->priority,
+                ];
+            }
+        }
+
+        $this->index = new ListenerIndex($registrations);
+    }
+
+    public function provideFor(Throwable $exception): iterable
+    {
+        $classes = [];
+        $seen = new SplObjectStorage();
+        foreach ($this->index->matching($exception) as $class) {
+            if (isset($classes[$class])) {
+                continue;
+            }
+            $classes[$class] = true;
+
+            try {
+                // Validate the resolver boundary, even when a caller bypasses PHPDoc types.
+                $listener = ($this->resolver)($class);
+                if (!$listener instanceof $class) {
+                    throw new UnexpectedValueException('Resolver must return an instance of the registered listener class.');
+                }
+            } catch (Throwable $failure) {
+                FailureLog::write('resolving error listener', $failure, $exception);
+                continue;
+            }
+
+            if (!$seen->contains($listener)) {
+                $seen->attach($listener);
+                yield $listener;
+            }
+        }
+    }
+}

@@ -9,7 +9,7 @@ use Componenta\Error\Clock\UtcClock;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Factory\ErrorReporterFactory;
 use Componenta\Error\Reporter\ErrorReporter;
@@ -36,7 +36,7 @@ final class ReporterClockTest extends TestCase
             );
         }
 
-        (new ErrorReporter(new ErrorListenerProvider($listeners), clock: $clock))->report(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv());
+        (new ErrorReporter(new ArrayErrorListenerProvider([\Throwable::class => $listeners]), clock: $clock))->report(new ErrorOccurrence(new RuntimeException(), 'ERR-test'), CliContext::fromArgv());
         self::assertCount(2, $events);
         self::assertSame($events[0], $events[1]);
         self::assertSame($instant, $events[0]->timestamp);
@@ -48,11 +48,11 @@ final class ReporterClockTest extends TestCase
         $clock = $this->createMock(ClockInterface::class);
         $clock->expects(self::once())->method('now')->willReturn($instant);
         $seen = null;
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$seen): void {
                 $seen = $event->timestamp;
             },
-        )]);
+        )]]);
         $container = $this->createStub(ContainerInterface::class);
         $container->method('has')->willReturnCallback(static fn (string $id): bool => in_array($id, [ErrorListenerProviderInterface::class, ClockInterface::class], true));
         $container->method('get')->willReturnMap([[ErrorListenerProviderInterface::class, $listeners], [ClockInterface::class, $clock]]);

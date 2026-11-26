@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace Componenta\Error\Event;
 
-/** Read-only source of listeners in dispatch order. */
+use Throwable;
+
+/** Supplies matching listeners in dispatch order for the given exception type. */
 interface ErrorListenerProviderInterface
 {
-    /** @return iterable<ErrorListenerInterface> */
-    public function getListeners(): iterable;
+    /**
+     * Matching includes parent exception classes and compatible interfaces.
+     * Each call provides an independently traversable sequence.
+     *
+     * @return iterable<ErrorListenerInterface>
+     */
+    public function provideFor(Throwable $exception): iterable;
 }

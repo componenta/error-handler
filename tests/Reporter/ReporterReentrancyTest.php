@@ -8,7 +8,7 @@ use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Reporter\ErrorReporter;
 use Componenta\Error\Reporter\ListenerExceptionPolicy;
 use Fiber;
@@ -23,7 +23,7 @@ final class ReporterReentrancyTest extends TestCase
     {
         $reporter = null;
         $calls = [];
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reporter, &$calls): void {
                 $calls[] = $event->error->exception->getMessage();
                 // Bound the test itself so the old implementation fails safely.
@@ -31,7 +31,7 @@ final class ReporterReentrancyTest extends TestCase
                     $reporter->report(new ErrorOccurrence(new RuntimeException('nested'), 'ERR-test'), $event->context);
                 }
             },
-        )]);
+        )]]);
         $reporter = new ErrorReporter($listeners);
 
         $reporter->report(new ErrorOccurrence(new RuntimeException('first'), 'ERR-test'), $this->context());
@@ -43,7 +43,7 @@ final class ReporterReentrancyTest extends TestCase
     public function testIndependentFibersCanReportWhileAnotherIsSuspended(): void
     {
         $calls = [];
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$calls): void {
                 $message = $event->error->exception->getMessage();
                 $calls[] = $message;
@@ -51,7 +51,7 @@ final class ReporterReentrancyTest extends TestCase
                     Fiber::suspend();
                 }
             },
-        )]);
+        )]]);
         $reporter = new ErrorReporter($listeners);
         $context = $this->context();
         $a = new Fiber(static fn () => $reporter->report(new ErrorOccurrence(new RuntimeException('fiber-a'), 'ERR-test'), $context));
@@ -69,13 +69,13 @@ final class ReporterReentrancyTest extends TestCase
     {
         $calls = 0;
         $failure = new RuntimeException('listener failure');
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function () use (&$calls, $failure): void {
                 if (++$calls === 1) {
                     throw $failure;
                 }
             },
-        )]);
+        )]]);
         $reporter = new ErrorReporter($listeners, listenerExceptionPolicy: ListenerExceptionPolicy::Throw);
 
         try {

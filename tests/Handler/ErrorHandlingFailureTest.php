@@ -31,9 +31,9 @@ final class ErrorHandlingFailureTest extends TestCase
         $id = $this->createStub(ErrorIdGeneratorInterface::class);
         $id->method('generate')->willThrowException(new RuntimeException('broken generator'));
         $reported = [];
-        $listeners = new \Componenta\Error\Event\ErrorListenerProvider([ErrorListener::createFrom(static function (ErrorEventInterface $event) use (&$reported): void {
+        $listeners = new \Componenta\Error\Event\Provider\ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(static function (ErrorEventInterface $event) use (&$reported): void {
             $reported[] = $event;
-        })]);
+        })]]);
 
         $reporter = new ErrorReporter($listeners, new NonReportableErrors([static fn () => throw new RuntimeException('broken filter')]));
         $handler = HttpErrorHandler::createDefaults(new Psr17Factory(), $renderer, $reporter);

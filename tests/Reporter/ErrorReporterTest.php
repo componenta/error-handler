@@ -9,7 +9,7 @@ use Componenta\Error\Context\CliContext;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Reporter\ErrorReporter;
 use Componenta\Error\Reporter\Policy\NonReportableErrors;
 use InvalidArgumentException;
@@ -27,11 +27,11 @@ final class ErrorReporterTest extends TestCase
     public function testReportDispatchesEventToListeners(): void
     {
         $receivedEvents = [];
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$receivedEvents): void {
                 $receivedEvents[] = $event;
             },
-        )]);
+        )]]);
 
         $reporter = new ErrorReporter($listeners);
         $exception = new RuntimeException('test');
@@ -83,11 +83,11 @@ final class ErrorReporterTest extends TestCase
      */
     private function reporter(array &$reported, NonReportableErrors $policy): ErrorReporter
     {
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
                 $reported[] = $event->error->exception;
             },
-        )]);
+        )]]);
 
         return new ErrorReporter($listeners, $policy);
     }

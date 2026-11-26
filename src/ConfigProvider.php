@@ -14,13 +14,7 @@ use Componenta\Error\Factory\HttpErrorResponseGeneratorFactory;
 use Componenta\Error\Factory\ErrorIdGeneratorFactory;
 use Componenta\Error\Factory\ErrorHandlerMiddlewareFactory;
 use Componenta\Error\Factory\ErrorReporterFactory;
-use Componenta\Error\Factory\ErrorListenerProviderFactory;
-use Componenta\Error\Factory\NonReportableErrorsFactory;
 use Componenta\Error\Factory\ErrorOccurrenceFactoryFactory;
-use Componenta\Error\Event\ErrorListenerProvider;
-use Componenta\Error\Event\ErrorListenerProviderInterface;
-use Componenta\Error\Reporter\Policy\ErrorReportingPolicyInterface;
-use Componenta\Error\Reporter\Policy\NonReportableErrors;
 use Componenta\Error\Factory\RenderingCliErrorHandlerFactory;
 use Componenta\Error\Factory\HttpErrorHandlerFactory;
 use Componenta\Error\Http\HttpErrorResponseGenerator;
@@ -43,8 +37,6 @@ class ConfigProvider extends ComponentaProvider
             ErrorHandlerMiddleware::class => ErrorHandlerMiddlewareFactory::class,
             ErrorReporter::class => ErrorReporterFactory::class,
             ErrorOccurrenceFactory::class => ErrorOccurrenceFactoryFactory::class,
-            ErrorListenerProvider::class => ErrorListenerProviderFactory::class,
-            NonReportableErrors::class => NonReportableErrorsFactory::class,
             RandomErrorIdGenerator::class => ErrorIdGeneratorFactory::class,
         ];
     }
@@ -55,8 +47,6 @@ class ConfigProvider extends ComponentaProvider
             HttpErrorHandlerInterface::class => HttpErrorHandler::class,
             CliErrorHandlerInterface::class => CliErrorHandler::class,
             ErrorReporterInterface::class => ErrorReporter::class,
-            ErrorListenerProviderInterface::class => ErrorListenerProvider::class,
-            ErrorReportingPolicyInterface::class => NonReportableErrors::class,
             ErrorIdGeneratorInterface::class => RandomErrorIdGenerator::class,
             ConfigKey::HTTP_FALLBACK_GENERATOR => HttpErrorResponseGenerator::class,
             ConfigKey::CLI_FALLBACK_HANDLER => RenderingCliErrorHandler::class,

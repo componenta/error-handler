@@ -10,7 +10,7 @@ use Componenta\Error\Context\HttpContext;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Handler\HttpErrorHandler;
 use Componenta\Error\Reporter\ErrorReporter;
 use Componenta\Error\Reporter\Policy\NonReportableErrors;
@@ -90,11 +90,11 @@ final class HttpErrorHandlerTest extends TestCase
     {
         $factory = new Psr17Factory();
         $reported = [];
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
                 $reported[] = $event;
             },
-        )]);
+        )]]);
 
         $handler = new HttpErrorHandler(
             new HttpErrorHandlerStub($factory->createResponse(500)),
@@ -167,11 +167,11 @@ final class HttpErrorHandlerTest extends TestCase
     private function handlerWithReporter(array &$reported, NonReportableErrors $policy): HttpErrorHandler
     {
         $factory = new Psr17Factory();
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
                 $reported[] = $event->error->exception;
             },
-        )]);
+        )]]);
 
         $reporter = new ErrorReporter($listeners, $policy);
         return new HttpErrorHandler(

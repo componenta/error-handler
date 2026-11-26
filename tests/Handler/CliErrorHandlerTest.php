@@ -10,7 +10,7 @@ use Componenta\Error\Context\HttpContext;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\Event\ErrorEventInterface;
 use Componenta\Error\Event\ErrorListener;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Handler\CliErrorHandler;
 use Componenta\Error\Reporter\ErrorReporter;
 use Componenta\Error\Reporter\Policy\NonReportableErrors;
@@ -79,11 +79,11 @@ final class CliErrorHandlerTest extends TestCase
     public function testHandleReportsExceptionWithErrorId(): void
     {
         $reported = [];
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
                 $reported[] = $event;
             },
-        )]);
+        )]]);
 
         $handler = new CliErrorHandler(
             new CliErrorHandlerStub(renderOutput: 'error'),
@@ -151,11 +151,11 @@ final class CliErrorHandlerTest extends TestCase
      */
     private function handlerWithReporter(array &$reported, NonReportableErrors $policy): CliErrorHandler
     {
-        $listeners = new ErrorListenerProvider([ErrorListener::createFrom(
+        $listeners = new ArrayErrorListenerProvider([\Throwable::class => [ErrorListener::createFrom(
             static function (ErrorEventInterface $event) use (&$reported): void {
                 $reported[] = $event->error->exception;
             },
-        )]);
+        )]]);
 
         $reporter = new ErrorReporter($listeners, $policy);
         return new CliErrorHandler(

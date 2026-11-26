@@ -8,7 +8,7 @@ use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliContext;
 use Componenta\Error\Context\HttpContext;
 use Componenta\Error\Event\ErrorListener;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Handler\HttpErrorHandler;
 use Componenta\Error\Http\Middleware\ErrorHandlerMiddleware;
 use Componenta\Error\Renderer\ConsoleErrorRenderer;
@@ -105,7 +105,7 @@ final class ErrorHandlerBench
         for ($i = 0; $i < $params['listeners']; $i++) {
             $listeners[] = ErrorListener::createFrom(static function (): void {});
         }
-        (new ErrorReporter(new ErrorListenerProvider($listeners)))->report($this->error, $this->json);
+        (new ErrorReporter(new ArrayErrorListenerProvider([\Throwable::class => $listeners])))->report($this->error, $this->json);
     }
 
     public function provideFanOut(): iterable

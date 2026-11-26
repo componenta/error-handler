@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Componenta\Error\Factory;
 
 use Componenta\Error\Clock\UtcClock;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Internal\TypedService;
 use Componenta\Error\Reporter\ErrorReporter;
@@ -21,7 +21,7 @@ final readonly class ErrorReporterFactory
         return new ErrorReporter(
             listeners: $container->has(ErrorListenerProviderInterface::class)
                 ? TypedService::get($container, ErrorListenerProviderInterface::class, ErrorListenerProviderInterface::class)
-                : new ErrorListenerProvider(),
+                : new ArrayErrorListenerProvider(),
             policy: $container->has(ErrorReportingPolicyInterface::class)
                 ? TypedService::get($container, ErrorReportingPolicyInterface::class, ErrorReportingPolicyInterface::class)
                 : new NonReportableErrors(),

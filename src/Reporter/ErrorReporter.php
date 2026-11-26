@@ -8,7 +8,10 @@ use Componenta\Error\Clock\UtcClock;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Event\ErrorEvent;
-use Componenta\Error\Event\ErrorListenerProvider;
+use Componenta\Error\Event\Provider\ArrayErrorListenerProvider;
+use Componenta\Error\Event\ErrorListenerInterface;
+use SplObjectStorage;
+use UnexpectedValueException;
 use Componenta\Error\Event\ErrorListenerProviderInterface;
 use Componenta\Error\Internal\FailureLog;
 use Componenta\Error\Reporter\Policy\ErrorReportingPolicyInterface;
@@ -27,7 +30,7 @@ final class ErrorReporter implements ErrorReporterInterface
     private ?WeakMap $reportingFibers = null;
 
     public function __construct(
-        private readonly ErrorListenerProviderInterface $listeners = new ErrorListenerProvider(),
+        private readonly ErrorListenerProviderInterface $listeners = new ArrayErrorListenerProvider(),
         private readonly ErrorReportingPolicyInterface $policy = new NonReportableErrors(),
         private readonly ClockInterface $clock = new UtcClock(),
         private readonly ListenerExceptionPolicy $listenerExceptionPolicy = ListenerExceptionPolicy::Swallow,
@@ -51,11 +54,20 @@ final class ErrorReporter implements ErrorReporterInterface
                 FailureLog::write('reporting policy', $failure, $error->exception);
             }
 
-            $event = new ErrorEvent($error, $context, $this->timestamp($error));
+            $event = null;
+            $seen = new SplObjectStorage();
 
-            foreach ($this->listeners->getListeners() as $listener) {
+            foreach ($this->listeners->provideFor($error->exception) as $listener) {
                 try {
+                    if (!$listener instanceof ErrorListenerInterface) {
+                        throw new UnexpectedValueException('Provider must yield error listeners.');
+                    }
+                    if ($seen->contains($listener)) {
+                        continue;
+                    }
+                    $seen->attach($listener);
                     if ($listener->supports($error, $context)) {
+                        $event ??= new ErrorEvent($error, $context, $this->timestamp($error));
                         $listener->handleEvent($event);
                     }
                 } catch (Throwable $failure) {
