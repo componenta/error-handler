@@ -18,6 +18,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 
 final class ConsoleErrorRendererTest extends TestCase
 {
@@ -132,5 +133,71 @@ final class ConsoleErrorRendererTest extends TestCase
     {
         yield 'built-in context' => [false];
         yield 'interface-only context' => [true];
+    }
+
+    public function testAutomaticColorsFollowCurrentOutputWithoutRetainingPreviousDecision(): void
+    {
+        $previous = getenv('NO_COLOR');
+        putenv('NO_COLOR');
+        try {
+            $renderer = new ConsoleErrorRenderer(debug: false, terminalWidth: 80);
+            $error = new ErrorOccurrence(new RuntimeException('command failure'), 'ERR-colors');
+            $decorated = new BufferedOutput();
+            $decorated->setDecorated(true);
+            $plain = new BufferedOutput();
+            $plain->setDecorated(false);
+            $input = new ArrayInput([]);
+
+            $colored = $renderer->render($error, new CliContext($input, $decorated))->content;
+            $uncolored = $renderer->render($error, new CliContext($input, $plain))->content;
+            self::assertStringContainsString("\x1b[", $colored);
+            self::assertStringNotContainsString("\x1b", $uncolored);
+            self::assertSame($uncolored, preg_replace('/\x1b\[[0-9;]*m/', '', $colored));
+            self::assertSame($colored, $renderer->render($error, new CliContext($input, $decorated))->content);
+        } finally {
+            putenv($previous === false ? 'NO_COLOR' : 'NO_COLOR=' . $previous);
+        }
+    }
+
+    public function testAutomaticColorsFollowErrorOutputRatherThanStandardOutput(): void
+    {
+        $previous = getenv('NO_COLOR');
+        putenv('NO_COLOR');
+        try {
+            $stderr = new BufferedOutput();
+            $stderr->setDecorated(false);
+            $console = $this->createStub(ConsoleOutputInterface::class);
+            $console->method('isDecorated')->willReturn(true);
+            $console->method('getErrorOutput')->willReturn($stderr);
+            $renderer = new ConsoleErrorRenderer(debug: false, terminalWidth: 80);
+            $error = new ErrorOccurrence(new RuntimeException('failure'), 'ERR-stderr');
+            $context = new CliContext(new ArrayInput([]), $console);
+
+            self::assertStringNotContainsString("\x1b", $renderer->render($error, $context)->content);
+            $stderr->setDecorated(true);
+            self::assertStringContainsString("\x1b[", $renderer->render($error, $context)->content);
+        } finally {
+            putenv($previous === false ? 'NO_COLOR' : 'NO_COLOR=' . $previous);
+        }
+    }
+
+    public function testExplicitColorOptionsOverrideAutomaticDetection(): void
+    {
+        $previous = getenv('NO_COLOR');
+        try {
+            putenv('NO_COLOR=1');
+            $output = new BufferedOutput();
+            $output->setDecorated(true);
+            $error = new ErrorOccurrence(new RuntimeException('failure'), 'ERR-override');
+            $context = new CliContext(new ArrayInput([]), $output);
+            self::assertStringNotContainsString("\x1b", (new ConsoleErrorRenderer(debug: false))->render($error, $context)->content);
+            $output->setDecorated(false);
+            self::assertStringContainsString("\x1b[", (new ConsoleErrorRenderer(debug: false, colors: true))->render($error, $context)->content);
+            putenv('NO_COLOR');
+            $output->setDecorated(true);
+            self::assertStringNotContainsString("\x1b", (new ConsoleErrorRenderer(debug: false, colors: false))->render($error, $context)->content);
+        } finally {
+            putenv($previous === false ? 'NO_COLOR' : 'NO_COLOR=' . $previous);
+        }
     }
 }

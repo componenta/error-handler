@@ -7,6 +7,7 @@ namespace Componenta\Error\Renderer;
 use Componenta\Error\ErrorContextInterface;
 use Componenta\Error\ErrorOccurrence;
 use Componenta\Error\Context\CliErrorContextInterface;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Throwable;
 
 /**
@@ -17,16 +18,16 @@ use Throwable;
  * - Stack trace with syntax highlighting
  * - Source code preview with line numbers
  * - Previous exceptions chain
- * - Debug/production modes
+ * - Detailed or reduced diagnostics (both expose the exception message)
  *
  * @example
  * ```php
- * $renderer = ConsoleErrorRenderer::create(debug: true);
+ * $renderer = new ConsoleErrorRenderer(debug: true);
  *
  * try {
  *     // your code
  * } catch (Throwable $e) {
- *     echo $renderer->render((new ErrorOccurrenceFactory())->create($e), CliContext::fromArgv());
+ *     echo $renderer->render((new \Componenta\Error\ErrorOccurrenceFactory())->create($e), \Componenta\Error\Context\CliContext::fromArgv());
  * }
  * ```
  */
@@ -86,49 +87,42 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
     private const int CONTEXT_LINES = 5;
 
     /**
-     * @param bool $debug Show detailed stack trace and code preview
-     * @param bool $colors Enable ANSI colors
+     * @param bool $debug Show detailed stack trace and code preview; false still exposes the exception message
+     * @param bool|null $colors Explicit ANSI colors, or null to follow the current CLI error output
      * @param int $terminalWidth Terminal width (0 = auto-detect)
      * @param int $contextLines Number of code context lines
      * @param bool $showPreviousExceptions Show exception chain
      */
     public function __construct(
         private bool $debug = true,
-        private bool $colors = true,
+        private ?bool $colors = null,
         private int $terminalWidth = 0,
         private int $contextLines = self::CONTEXT_LINES,
         private bool $showPreviousExceptions = true,
     ) {}
-
-    /**
-     * Create renderer with auto-detected settings
-     */
-    public static function create(bool $debug = true): self
-    {
-        return new self(
-            debug: $debug,
-            colors: self::supportsColors(),
-            terminalWidth: self::detectTerminalWidth(),
-        );
-    }
-
-    /**
-     * Create renderer for production (minimal output)
-     */
-    public static function production(): self
-    {
-        return new self(
-            debug: false,
-            colors: self::supportsColors(),
-            terminalWidth: self::detectTerminalWidth(),
-        );
-    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Main render method
     // ═══════════════════════════════════════════════════════════════════════════
 
     public function render(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
+    {
+        // Resolve the target once per invocation. Do not keep a terminal decision
+        // in shared renderer state or repeatedly query the output for each token.
+        if ($this->colors === null) {
+            return (new self(
+                debug: $this->debug,
+                colors: self::supportsColors($context),
+                terminalWidth: $this->terminalWidth,
+                contextLines: $this->contextLines,
+                showPreviousExceptions: $this->showPreviousExceptions,
+            ))->renderResolved($error, $context);
+        }
+
+        return $this->renderResolved($error, $context);
+    }
+
+    private function renderResolved(ErrorOccurrence $error, ErrorContextInterface $context): RenderedError
     {
         $exception = $error->exception;
         $width = $this->getWidth();
@@ -753,29 +747,18 @@ final readonly class ConsoleErrorRenderer implements ErrorRendererInterface
         return self::DEFAULT_WIDTH;
     }
 
-    private static function supportsColors(): bool
+    private static function supportsColors(ErrorContextInterface $context): bool
     {
-        // NO_COLOR convention
-        if (getenv('NO_COLOR') !== false) {
+        if (getenv('NO_COLOR') !== false || !$context instanceof CliErrorContextInterface) {
             return false;
         }
 
-        // Windows
-        if (DIRECTORY_SEPARATOR === '\\') {
-            return getenv('ANSICON') !== false ||
-                getenv('ConEmuANSI') === 'ON' ||
-                getenv('TERM') === 'xterm' ||
-                (defined('STDOUT') && function_exists('sapi_windows_vt100_support') && @sapi_windows_vt100_support(STDOUT));
+        $output = $context->output;
+        if ($output instanceof ConsoleOutputInterface) {
+            $output = $output->getErrorOutput();
         }
 
-        // TERM check
-        $term = getenv('TERM');
-        if ($term === false || $term === 'dumb') {
-            return false;
-        }
-
-        // TTY check
-        return defined('STDOUT') && function_exists('posix_isatty') && @posix_isatty(STDOUT);
+        return $output->isDecorated();
     }
 
     public function supports(ErrorOccurrence $error, ErrorContextInterface $context): bool
